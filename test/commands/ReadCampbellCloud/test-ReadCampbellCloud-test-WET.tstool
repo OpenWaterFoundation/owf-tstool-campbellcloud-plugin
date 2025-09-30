@@ -1,0 +1,4 @@
+ReadCampbellCloud(DataStore="CampbellCloud-WET",DataType="BattVoltage",Interval="IrregSecond",StationId="a055cdf0-b04a-4173-bde8-798403733f1d")
+ReadCampbellCloud(DataStore="CampbellCloud-WET",DataType="BattVoltage",Interval="IrregSecond",StationId="a055cdf0-b04a-4173-bde8-798403733f1d",Timezone="UTC")
+ReadCampbellCloud(DataStore="CampbellCloud-WET",DataType="BattVoltage",Interval="IrregSecond",StationId="a055cdf0-b04a-4173-bde8-798403733f1d",InputStart="2025-09-01 00:00:00 UTC",InputEnd="2025-09-30 00:00:00 UTC")
+ReadCampbellCloud(DataStore="CampbellCloud-WET",DataType="BattVoltage",Interval="IrregSecond",StationId="a055cdf0-b04a-4173-bde8-798403733f1d",InputStart="2025-09-01 00:00:00 America/Denver",InputEnd="2025-09-30 00:00:00 America/Denver",Timezone="UTC")

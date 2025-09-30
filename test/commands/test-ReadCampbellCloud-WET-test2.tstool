@@ -1,0 +1,2 @@
+ReadCampbellCloud(DataStore="CampbellCloud-WET",DataType="*",Interval="*",Where1="station_id;Matches;a055cdf0-b04a-4173-bde8-798403733f1d",Where2="station_name;Matches;WET-test2")
+a055cdf0-b04a-4173-bde8-798403733f1d.CampbellCloud.BattVoltage.IrregSecond~CampbellCloud-WET
