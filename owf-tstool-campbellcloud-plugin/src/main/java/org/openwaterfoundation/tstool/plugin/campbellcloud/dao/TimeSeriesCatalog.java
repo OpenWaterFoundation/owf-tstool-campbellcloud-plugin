@@ -2,21 +2,21 @@
 
 /* NoticeStart
 
-OWF TSTool KiWIS Plugin
-Copyright (C) 2022-2023 Open Water Foundation
+OWF TSTool Campbell Cloud Plugin
+Copyright (C) 2025 Open Water Foundation
 
-OWF TSTool KiWIS Plugin is free software:  you can redistribute it and/or modify
+OWF TSTool Campbell Cloud Plugin is free software:  you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
-    OWF TSTool KiWIS Plugin is distributed in the hope that it will be useful,
+OWF TSTool Campbell Cloud Plugin is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with OWF TSTool KiWIS Plugin.  If not, see <https://www.gnu.org/licenses/>.
+You should have received a copy of the GNU General Public License
+    along with OWF TSTool Campbell Cloud Plugin.  If not, see <https://www.gnu.org/licenses/>.
 
 NoticeEnd */
 
@@ -28,15 +28,15 @@ import java.util.List;
 import RTi.TS.TSIdent;
 
 /**
- * Class to store time series catalog (metadata) for KiWIS TSTool time series list.
- * This is a combination of standard time series properties used in TSTool and KiWIS data.
+ * Class to store time series catalog (metadata) for Campbell Cloud TSTool time series list.
+ * This is a combination of standard time series properties used in TSTool and Campbell Cloud data.
  * More data may be included and shown in the table model while evaluating the web services
  * and will be removed or disabled later.
  * The types are as one would expect, whereas the 'TimeSeries' object uses strings as per web service JSON types.
  */
 public class TimeSeriesCatalog {
 
-	// General data, provided by TSTool, extracted/duplicated from KiWIS services.
+	// General data, provided by TSTool, extracted/duplicated from Campbell Cloud services.
 	//private String locId = "";
 	private String dataSource = "";
 	private String dataInterval = "";

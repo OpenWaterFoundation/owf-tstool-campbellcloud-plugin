@@ -1,8 +1,8 @@
 # TSTool / Datastore Reference / Overview #
 
-* [Introduction](#introduction)
-* [Campbell Cloud Datastore](#campbellcloud-datastores)
-* [Datastore Configuration](#datastore-configuration)
+*   [Introduction](#introduction)
+*   [Campbell Cloud Datastore](#campbellcloud-datastores)
+*   [Datastore Configuration](#datastore-configuration)
 
 -----
 

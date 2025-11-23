@@ -58,7 +58,7 @@ public class Station {
 	 * "metadata".
 	 */
 	private StationMetadata metadata = null;
-	
+
 	/**
 	 * "created_by"
 	 */
@@ -81,6 +81,29 @@ public class Station {
 	 * Default constructor used by Jackson.
 	 */
 	public Station () {
+	}
+
+	/**
+	 * Clean the data, for example by replacing curly single quote with straight single quote.
+	 * This is helpful when an output format cannot handle such data values.
+	 */
+	public void cleanData () {
+		if ( this.metadata != null ) {
+			this.metadata.cleanData();
+		}
+	}
+
+	/**
+	 * Clean the data, for example by replacing curly single quote with straight single quote.
+	 * This is helpful when an output format cannot handle such data values.
+	 * @param stations list of stations to clean
+	 */
+	public static void cleanData ( List<Station> stations ) {
+		if ( stations != null ) {
+			for ( Station station : stations ) {
+				station.cleanData ();
+			}
+		}
 	}
 
 	/**
@@ -107,7 +130,7 @@ public class Station {
 
 	/**
 	 * Return the station "created_by".
-	 * @return the station "created_by". 
+	 * @return the station "created_by".
 	 */
 	public String getCreatedBy () {
 		return this.createdBy;
@@ -115,15 +138,15 @@ public class Station {
 
 	/**
 	 * Return the station "created_ts".
-	 * @return the station "created_ts". 
+	 * @return the station "created_ts".
 	 */
 	public Long getCreatedTs () {
 		return this.createdTs;
 	}
-	
+
 	/**
 	 * Return the station identifier.
-	 * @return the station identifier. 
+	 * @return the station identifier.
 	 */
 	public String getId () {
 		return this.id;
@@ -131,7 +154,7 @@ public class Station {
 
 	/**
 	 * Return the station metadata.
-	 * @return the station metadata. 
+	 * @return the station metadata.
 	 */
 	public StationMetadata getMetadata () {
 		return this.metadata;

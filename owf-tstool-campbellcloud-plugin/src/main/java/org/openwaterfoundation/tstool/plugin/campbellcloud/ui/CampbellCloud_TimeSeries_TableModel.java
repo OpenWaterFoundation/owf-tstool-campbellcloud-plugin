@@ -223,7 +223,7 @@ public class CampbellCloud_TimeSeries_TableModel extends JWorksheet_AbstractRowT
 	    widths[COL_STATION_LATITUDE] = 6;
 	    widths[COL_STATION_ELEVATION] = 6;
 		//widths[COL_STATION_DESCRIPTION] = 15;
-		widths[COL_ASSET_ID] = 20;
+		widths[COL_ASSET_ID] = 25;
 		widths[COL_ASSET_NAME] = 20;
 		widths[COL_ASSET_DESCRIPTION] = 20;
 		widths[COL_ASSET_MANUFACTURER] = 20;

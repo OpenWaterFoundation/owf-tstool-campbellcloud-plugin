@@ -84,7 +84,7 @@ public class TimeUtil {
 
     /**
      * Convert a DateTime to a Unix Epoch seconds in UTC, which Campbell Cloud API uses for period start and end.
-     * @param dt DateTime instance to convert.  The time zone will be used or UTC if not specified.
+     * @param dt DateTime instance to convert.  The time zone will be used or computer time if not specified.
      * @return an Unix Epoch number of seconds
      */
     public static long toEpochSecondsUTC ( DateTime dt ) {
@@ -103,8 +103,7 @@ public class TimeUtil {
     		// - TODO smalers 2025-09-29 might be able to cache this if it is a performance issue
     		zoneId = ZoneId.of(dtTimeZone);
     	}
-    	// Create an OffsetDateTime.
-    	//OffsetDateTime odt = OffsetDateTime.of (
+    	// Create a ZonedDateTime.
     	ZonedDateTime zdt = ZonedDateTime.of (
     		dt.getYear(),
     		dt.getMonth(),
@@ -115,6 +114,7 @@ public class TimeUtil {
     		dt.getNanoSecond(),
     		zoneId
    		);
+    	// Return the Epoch seconds, which will be in UTC.
     	return zdt.toEpochSecond();
     }
 

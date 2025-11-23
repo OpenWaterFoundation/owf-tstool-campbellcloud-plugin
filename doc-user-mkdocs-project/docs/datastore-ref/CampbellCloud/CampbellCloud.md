@@ -3,6 +3,7 @@
 *   [Overview](#overview)
 *   [Standard Time Series Properties](#standard-time-series-properties)
 *   [Other Specifications and Integration Considerations](#other-specifications-and-integration-considerations)
+    +   [Timezone Handling](#timezone-handling)
 *   [Limitations](#limitations)
 *   [Datastore Configuration File](#datastore-configuration-file)
 *   [See Also](#see-also)
@@ -157,9 +158,7 @@ The following are other specifications related to TSTool plugin integration with
         Time series data points have a limit of 1500 points.
         If the requested period returns more than 1500 points multiple requests will occur.
 5.  **Time zone:**
-    1.  Campbell Cloud internally stores data in UTC and web service times and query parameters use UTC by default.
-    2.  The station local time zone does not appear to be saved consistently in Campbell cloud.
-    3.  Therefore, TSTool uses the computer local time zone for the query start and end and time series data.
+    *   See the [Timezone Handling](#timezone-handling) section below.
 6.  **Timestamp and Data Interval:**
     1.  Currently, TSTool handles all time series as irregular interval with default `IrregSecond` interval.
     2.  Times are saved to millisecond precision.
@@ -167,6 +166,54 @@ The following are other specifications related to TSTool plugin integration with
 7.  **Observations:**
     1.  Campbell Cloud does not store a data flag for values.
     2.  If duplicate values are encountered at the same time, the last value encountered is saved in the time series.
+
+### Timezone Handling ###
+
+The following are features of Campbell Cloud related to timezone:
+
+*   Campbell Cloud internally stores data in UTC and web service times and query parameters use UTC by default.
+*   Web service API query parameters such as time series period use [Epoch](https://en.wikipedia.org/wiki/Epoch_(computing)) milliseconds
+    (refer to the API documentation).
+*   The station local time zone does not appear to be saved consistently in Campbell cloud,
+    but it may be possible to configure this metadata and automatically convert UTC data to station timezone.
+    Currently the TSTool plugin does not use this value.
+*   Using an output timezone that uses [daylight saving time](https://en.wikipedia.org/wiki/Daylight_saving_time)
+    will result in a one hour when no data exist (because time skips forward by an hour)
+    and one hour each year when duplicate values exist (because time skips back by one hour).
+    These discontinuties are not present in the UTC timeline, which does not use daylight saving,
+    but will be present if local time are used during input and output.
+
+TSTool is able to handle various timezone representations for the date/times used with the time series period of record
+and individual time series values.
+No (empty) timezone is also allowed,
+which implies that the timezone is not important (e.g., for date) or is consistent (for date/time).
+Constantly checking date/times for timezone compatibility in each command is a complication that is often ignored.
+In most cases, the data for a workflow will have constant timezone because all data are local.
+However, it is always best if the workflow clearly enforces consistent timezone.
+
+The [`SetInputPeriod`](https://opencdss.state.co.us/tstool/latest/doc-user/command-ref/SetInputPeriod/SetInputPeriod/) command
+and [`ReadCampbellCloud`](../../command-ref/ReadCampbellCloud/ReadCampbellCloud.md)
+`InputStart`, `InputEnd`, and `Timezone` command parameters set the input (read) period.
+
+The timezone is handled as followed:
+
+*   Timezones used in date/times in command parameters should use the timezone name (e.g., `America/Denver` or `UTC`),
+    not UTC offset format (e.g., `+06:00`).
+    This allows daylight saving time to be properly handled throughout the year and period of record.
+    See the ["List of tz database time zones" on Wikipedia](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)
+    "TZ Identifier" for a list of recognized timezones.
+*   If the timezone is not specified in the input period,
+    the Campbell Cloud [`TSID`](../../command-ref/TSID/TSID.md) and
+    [`ReadCampbellCloud`](../../command-ref/ReadCampbellCloud/ReadCampbellCloud.md) commands
+    will use the computer's timezone.
+*   If a timezone is specified in the period or the
+    [`ReadCampbellCloud`](../../command-ref/ReadCampbellCloud/ReadCampbellCloud.md) command `Timezone` parameter,
+    it will be used.
+*   The `Timezone` parameter is provided as a convenience to override the input period time zone.
+    It does not cause a shift in the date/time but simply overrides the timezone.
+*   The time timezone used with the input period is used to determine the [Epoch](https://en.wikipedia.org/wiki/Epoch_(computing))
+    milliseconds, which are used to query Campbell Cloud time series data.
+*   Each time series value's date/time is converted to the requested time zone for output.
 
 ## Limitations ##
 
@@ -262,4 +309,5 @@ Campbell Cloud Web Services Datastore Configuration File Properties
 *   [`ReadCampbellCloud`](../../command-ref/ReadCampbellCloud/ReadCampbellCloud.md) command
 *   [`ReadTableFromDelimitedFile`](https://opencdss.state.co.us/tstool/latest/doc-user/command-ref/ReadTableFromDelimitedFile/ReadTableFromDelimitedFile/) command
 *   [`ReadTableFromJSON`](https://opencdss.state.co.us/tstool/latest/doc-user/command-ref/ReadTableFromJSON/ReadTableFromJSON/) command
+*   [`SetInputPeriod`](https://opencdss.state.co.us/tstool/latest/doc-user/command-ref/SetInputPeriod/SetInputPeriod/) command
 *   [`WebGet`](https://opencdss.state.co.us/tstool/latest/doc-user/command-ref/WebGet/WebGet/) command
