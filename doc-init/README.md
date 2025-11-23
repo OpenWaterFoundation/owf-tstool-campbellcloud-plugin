@@ -10,7 +10,8 @@ main repository [`README.md`](../README.md) file.
 Create the GitHub public repository `owf-tstool-campbellcloud-plugin`.
 Note that there are multiple Git management systems available.
 This plugin is specific to the Campbell Cloud API.
-The Atlassian company, which provides Campbell Cloud, also has other products and APIs.
+The [Campbell Scientific](https://www.campbellsci.com/) company,
+which provides Campbell Cloud, also has other products and APIs.
 
 Clone to the `TSTool/git-repos` folder on the computer.
 

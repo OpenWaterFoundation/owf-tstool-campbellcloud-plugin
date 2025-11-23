@@ -27,6 +27,8 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import RTi.Util.Message.Message;
+
 /**
  * Campbell Cloud API "list-assets" "metadata" object.
  * <pre>
@@ -93,13 +95,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 @JsonIgnoreProperties(ignoreUnknown=true)
 public class AssetMetadata {
 	// List in the order of the object.
-	
+
 	/**
 	 * Model.
 	 */
 	@JsonProperty("model")
 	private String model = "";
-	
+
 	/**
 	 * "description"
 	 */
@@ -179,8 +181,15 @@ public class AssetMetadata {
 	}
 
 	/**
+	 * Clean the data.
+	 * Currently no cleanup is needed - this code was used to troubleshoot data decoding.
+	 */
+	public void cleanData () {
+	}
+
+	/**
 	 * Return the asset metadata auto_update.
-	 * @return the asset metadata auto_update. 
+	 * @return the asset metadata auto_update.
 	 */
 	public Map<String,Object> getAutoUpdate () {
 		return this.autoUpdate;
@@ -188,7 +197,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata configuration.
-	 * @return the asset metadata configuration. 
+	 * @return the asset metadata configuration.
 	 */
 	public Map<String,Object> getConfiguration () {
 		return this.configuration;
@@ -196,7 +205,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata description.
-	 * @return the asset metadata description. 
+	 * @return the asset metadata description.
 	 */
 	public String getDescription () {
 		return this.description;
@@ -204,7 +213,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata maintenance mode.
-	 * @return the asset metadata maintenance mode. 
+	 * @return the asset metadata maintenance mode.
 	 */
 	public Boolean getMaintMode () {
 		return this.maintMode;
@@ -212,7 +221,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata manufacturer.
-	 * @return the asset metadata manufacturer. 
+	 * @return the asset metadata manufacturer.
 	 */
 	public String getManufacturer () {
 		return this.manufacturer;
@@ -220,7 +229,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata model.
-	 * @return the asset metadata model. 
+	 * @return the asset metadata model.
 	 */
 	public String getModel () {
 		return this.model;
@@ -228,7 +237,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata name.
-	 * @return the asset metadata name. 
+	 * @return the asset metadata name.
 	 */
 	public String getName () {
 		return this.name;
@@ -236,7 +245,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata profile.
-	 * @return the asset metadata profile. 
+	 * @return the asset metadata profile.
 	 */
 	public String getProfile () {
 		return this.profile;
@@ -244,7 +253,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata serial.
-	 * @return the asset metadata serial. 
+	 * @return the asset metadata serial.
 	 */
 	public String getSerial () {
 		return this.serial;
@@ -252,7 +261,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata state.
-	 * @return the asset metadata state. 
+	 * @return the asset metadata state.
 	 */
 	public Map<String,Object> getState () {
 		return this.state;
@@ -260,7 +269,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata status.
-	 * @return the asset metadata status. 
+	 * @return the asset metadata status.
 	 */
 	public String getStatus () {
 		return this.status;
@@ -268,7 +277,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata uid.
-	 * @return the asset metadata uid. 
+	 * @return the asset metadata uid.
 	 */
 	public String getUid () {
 		return this.uid;
@@ -276,7 +285,7 @@ public class AssetMetadata {
 
 	/**
 	 * Return the asset metadata version.
-	 * @return the asset metadata version. 
+	 * @return the asset metadata version.
 	 */
 	public Integer getVersion () {
 		return this.version;

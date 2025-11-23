@@ -116,7 +116,7 @@ public class Asset {
 	 * "metadata".
 	 */
 	private AssetMetadata metadata = null;
-	
+
 	/**
 	 * "created_ts"
 	 */
@@ -133,6 +133,29 @@ public class Asset {
 	 * Default constructor used by Jackson.
 	 */
 	public Asset () {
+	}
+
+	/**
+	 * Clean the data, for example by replacing curly single quote with straight single quote.
+	 * This is helpful when an output format cannot handle such data values.
+	 */
+	public void cleanData () {
+		if ( this.metadata != null ) {
+			this.metadata.cleanData();
+		}
+	}
+
+	/**
+	 * Clean the data, for example by replacing curly single quote with straight single quote.
+	 * This is helpful when an output format cannot handle such data values.
+	 * @param stations list of stations to clean
+	 */
+	public static void cleanData ( List<Asset> assets ) {
+		if ( assets != null ) {
+			for ( Asset asset : assets ) {
+				asset.cleanData ();
+			}
+		}
 	}
 
 	/**
@@ -159,7 +182,7 @@ public class Asset {
 
 	/**
 	 * Return the station "created_by".
-	 * @return the station "created_by". 
+	 * @return the station "created_by".
 	 */
 	public String getCreatedBy () {
 		return this.createdBy;
@@ -167,15 +190,15 @@ public class Asset {
 
 	/**
 	 * Return the station "created_ts".
-	 * @return the station "created_ts". 
+	 * @return the station "created_ts".
 	 */
 	public Long getCreatedTimestamp () {
 		return this.createdTimestamp;
 	}
-	
+
 	/**
 	 * Return the station identifier.
-	 * @return the station identifier. 
+	 * @return the station identifier.
 	 */
 	public String getId () {
 		return this.id;
@@ -183,7 +206,7 @@ public class Asset {
 
 	/**
 	 * Return the station metadata.
-	 * @return the station metadata. 
+	 * @return the station metadata.
 	 */
 	public AssetMetadata getMetadata () {
 		return this.metadata;
@@ -191,7 +214,7 @@ public class Asset {
 
 	/**
 	 * Return the station "updated_ts".
-	 * @return the station "updated_ts". 
+	 * @return the station "updated_ts".
 	 */
 	public Long getUpdatedTimestamp () {
 		return this.updatedTimestamp;

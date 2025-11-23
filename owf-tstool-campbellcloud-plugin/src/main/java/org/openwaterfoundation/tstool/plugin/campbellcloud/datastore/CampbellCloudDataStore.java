@@ -52,7 +52,6 @@ import org.openwaterfoundation.tstool.plugin.campbellcloud.dao.Organization;
 import org.openwaterfoundation.tstool.plugin.campbellcloud.dao.Station;
 import org.openwaterfoundation.tstool.plugin.campbellcloud.dao.StationComparator;
 import org.openwaterfoundation.tstool.plugin.campbellcloud.dao.StationMetadata;
-//import org.openwaterfoundation.tstool.plugin.campbellcloud.dao.InterpolationType;
 import org.openwaterfoundation.tstool.plugin.campbellcloud.dao.TimeSeriesCatalog;
 import org.openwaterfoundation.tstool.plugin.campbellcloud.dao.Token;
 import org.openwaterfoundation.tstool.plugin.campbellcloud.dao.Variable;
@@ -91,7 +90,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 	 */
 	//private final String COMMON_REQUEST_PARAMETERS = "?something=something"
 	//private final String COMMON_REQUEST_PARAMETERS = "";
-	
+
 	/**
 	 * The data source to use for time series.
 	 */
@@ -172,7 +171,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 	<li> `Password` - Campbell Cloud account password</li>
 	<li> `ServiceApiDocumentationUrl` - URL for the API documentation landing page</li>
 	<li> `ServiceRootUrl` - the URL for the web service API, for example "ServiceRootUrl = "https://iot.campbell-cloud.com/api/v1/"</li>
-	<li> `Type` - just be `CampbellCloudDataStore`</li>
+	<li> `Type` - must be `CampbellCloudDataStore`</li>
 	<li> `UserName` - Campbell Cloud account user name</li>
 	</ul>
 	*/
@@ -485,7 +484,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 	public boolean providesTimeSeriesListInputFilterPanel () {
 		return true;
 	}
-	
+
 	/**
 	 * Return the list of cached Station.
 	 * @return the list of cached Station
@@ -506,6 +505,34 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 			this.tscatalogList = readTimeSeriesCatalog ( dataTypeReq, dataIntervalReq, ifp );
 		}
 		return this.tscatalogList;
+	}
+
+	/**
+ 	* Return the comments for a time series in the table model.
+ 	* The comments are added as commands prior to the TSID comment.
+ 	* @param tableModel the table model from which to extract data
+ 	* @param row the displayed table row, may have been sorted
+ 	* @return a list of comments (return null or an empty list to not add comments to commands).
+ 	* A single comment is returned.
+ 	*/
+	public List<String> getTimeSeriesCommentsFromTableModel ( @SuppressWarnings("rawtypes") JWorksheet_AbstractRowTableModel tableModel, int row ) {
+    	CampbellCloud_TimeSeries_TableModel tm = (CampbellCloud_TimeSeries_TableModel)tableModel;
+    	// Should not have any nulls.
+    	List<String> comments = new ArrayList<>();
+    	StringBuilder commentBuilder = new StringBuilder();
+    	String stationName = (String)tableModel.getValueAt(row,tm.COL_STATION_NAME);
+    	String datastreamId = (String)tableModel.getValueAt(row,tm.COL_DATASTREAM_ID);
+    	String assetModel = (String)tableModel.getValueAt(row,tm.COL_ASSET_MODEL);
+    	String assetDescription = (String)tableModel.getValueAt(row,tm.COL_ASSET_DESCRIPTION);
+    	commentBuilder.append(stationName);
+    	commentBuilder.append(", ");
+    	commentBuilder.append(assetModel);
+    	commentBuilder.append(" ");
+    	commentBuilder.append(assetDescription);
+    	commentBuilder.append(", datastream=");
+    	commentBuilder.append(datastreamId);
+    	comments.add(commentBuilder.toString() );
+    	return comments;
 	}
 
 	/**
@@ -640,7 +667,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 				}
 			}
 		}
-		
+
 		// Add the count to the data types.
 		boolean includeCount = true;
 		if ( includeCount ) {
@@ -678,9 +705,9 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
  	* The TSIdent parts will be uses as TSID commands.
  	* @param tableModel the table model from which to extract data
  	* @param row the displayed table row, may have been sorted
+ 	* @return a time series identifier that can be used for a TSID command
  	*/
-	public TSIdent getTimeSeriesIdentifierFromTableModel( @SuppressWarnings("rawtypes") JWorksheet_AbstractRowTableModel tableModel,
-		int row ) {
+	public TSIdent getTimeSeriesIdentifierFromTableModel( @SuppressWarnings("rawtypes") JWorksheet_AbstractRowTableModel tableModel, int row ) {
 		//String routine = getClass().getSimpleName() + ".getTimeSeriesIdentifierFromTableModel";
     	CampbellCloud_TimeSeries_TableModel tm = (CampbellCloud_TimeSeries_TableModel)tableModel;
     	// Should not have any nulls.
@@ -852,6 +879,10 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 
 		// Sort on the name.
 		//Collections.sort(assetList, new AssetComparator());
+
+		// Clean the data.
+		Asset.cleanData ( assetList );
+
 		return assetList;
 	}
 
@@ -1033,7 +1064,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 		Message.printWarning ( 2, routine, "Reading global data for datastore \"" + getName() + "\"." );
 
 		// Read the asset data.
-		
+
 		try {
 			this.assetList = readAssetList();
 			Message.printStatus(2, routine, "Read " + this.assetList.size() + " assets." );
@@ -1044,7 +1075,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 		}
 
 		// Read the datastream data.
-		
+
 		try {
 			this.datastreamList = readDatastreamList();
 			Message.printStatus(2, routine, "Read " + this.datastreamList.size() + " datastreamList." );
@@ -1053,10 +1084,10 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 			Message.printWarning(3, routine, "Error reading global datastreamList list (" + e + ")");
 			Message.printWarning(3, routine, e );
 		}
-		
+
 		// Read the measurement classification types:
 		// - this does not seem to work
-		
+
 		/*
 		try {
 			this.measurementClassificationTypeList = readMeasurementClassificationTypeList();
@@ -1070,7 +1101,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 
 		// Read the organization list:
 		// - maybe not allowed?
-		
+
 		/*
 		try {
 			this.organizationList = readOrganizationList();
@@ -1083,7 +1114,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 		*/
 
 		// Read the station list.
-		
+
 		try {
 			this.stationList = readStationList();
 			Message.printStatus(2, routine, "Read " + this.stationList.size() + " stations." );
@@ -1095,7 +1126,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 
 		// Read the variable list:
 		// - does not seem to work and not sure if it is useful for anything
-		
+
 		/*
 		try {
 			this.variableList = readVariableList();
@@ -1117,7 +1148,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     		InputFilter_JPanel ifp = null;
     		// Read the catalog for all time series.
 			this.tscatalogList = readTimeSeriesCatalog ( dataTypeReq, dataIntervalReq, ifp );
-			Message.printStatus(2, routine, "Read " + this.stationList.size() + " time series catalog." );
+			Message.printStatus(2, routine, "Read " + this.tscatalogList.size() + " time series catalog." );
 		}
 		catch ( Exception e ) {
 			Message.printWarning(3, routine, "Error reading global time series catalog list (" + e + ")");
@@ -1375,6 +1406,10 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 
 		// Sort on the name.
 		Collections.sort(stationList, new StationComparator());
+		
+		// Clean the data.
+		Station.cleanData ( stationList );
+
 		return stationList;
 	}
 
@@ -1425,7 +1460,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	) throws Exception {
     	String routine = getClass().getSimpleName() + ".readTimeSeries";
 		checkTokenExpiration();
-		
+
     	// Get the properties of interest:
     	// - corresponds to parameters in the ReadCampbellCloud command
     	// - TSID command uses the defaults and may result in more exceptions because TSID can only handle general behavior
@@ -1459,7 +1494,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	}
     	*/
     	// Default time zone is the computer local time:
-    	// - will be overridden below if 
+    	// - will be overridden below if
     	ZoneId zoneId = ZoneId.systemDefault();
     	String timezone = zoneId.toString();
     	object = readProperties.get("Timezone");
@@ -1557,7 +1592,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	// - above code used "req" (requested) variables based on the requested TSID
     	// - from this point forward the "out" variables are used,
     	//   in case IrregularInterval, Read24HourAsDay, or ReadDayAs24Hour properties were specified
-    	
+
    		if ( (irregularInterval != null) && !IrregularInterval.isEmpty() ) {
    			// Reset the irregular interval if requested.
    			tsidentReq.setInputName(IrregularInterval);
@@ -1613,9 +1648,9 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     		// Also read the time series values.
     		String datastreamId = tscatalog.getDatastreamId();
     		DatastreamDatapoint datastreamDatapoint = readDatastreamDatapoint ( datastreamId, readStart, readEnd );
-    		
+
     		// The data are ordered with oldest first.
-    		
+
     		List<DatastreamDatapointData> dataList = datastreamDatapoint.getData();
     		if ( dataList.size() > 0 ) {
     			// Set the period based on data from the first and last values:
@@ -1827,7 +1862,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 			// Save the catalog in the list.
 			tscatalogList.add(tscatalog);
 		}
-		
+
 		// Check the catalog list for problems.
 		for ( TimeSeriesCatalog tscatalog : tscatalogList ) {
 			// Make sure that the time series identifier is unique.
@@ -1995,5 +2030,5 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	ts.setProperty("datastream.id", tscatalog.getDatastreamId());
     	ts.setProperty("datastream.status", tscatalog.getDatastreamStatus());
     }
-    
+
 }

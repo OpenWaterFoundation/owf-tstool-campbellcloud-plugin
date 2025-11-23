@@ -27,6 +27,8 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import RTi.Util.Message.Message;
+
 /**
  * Campbell Cloud API "list-stations" "metadata" object.
  * <pre>
@@ -57,7 +59,7 @@ public class StationMetadata {
 	 * Location.
 	 */
 	private Location location = null;
-	
+
 	/**
 	 * "$profile"
 	 */
@@ -87,7 +89,7 @@ public class StationMetadata {
 	 */
 	@JsonProperty("description")
 	private String description = "";
-	
+
 	/**
 	 * Default constructor used by Jackson.
 	 */
@@ -95,8 +97,15 @@ public class StationMetadata {
 	}
 
 	/**
+	 * Clean the data.
+	 * No cleanup is currently needed - this was used in troubleshooting.
+	 */
+	public void cleanData () {
+	}
+
+	/**
 	 * Return the station metadata location.
-	 * @return the station metadata location. 
+	 * @return the station metadata location.
 	 */
 	public Location getLocation () {
 		return this.location;
@@ -104,7 +113,7 @@ public class StationMetadata {
 
 	/**
 	 * Return the station asset identifiers.
-	 * @return the station asset identifiers. 
+	 * @return the station asset identifiers.
 	 */
 	public List<String> getAssets () {
 		return this.assets;
@@ -112,7 +121,7 @@ public class StationMetadata {
 
 	/**
 	 * Return the station metadata description.
-	 * @return the station metadata description. 
+	 * @return the station metadata description.
 	 */
 	public String getDescription () {
 		return this.description;
@@ -120,7 +129,7 @@ public class StationMetadata {
 
 	/**
 	 * Return the station metadata name.
-	 * @return the station metadata name. 
+	 * @return the station metadata name.
 	 */
 	public String getName () {
 		return this.name;
@@ -128,7 +137,7 @@ public class StationMetadata {
 
 	/**
 	 * Return the station metadata profile.
-	 * @return the station metadata profile. 
+	 * @return the station metadata profile.
 	 */
 	public String getProfile () {
 		return this.profile;
@@ -136,10 +145,9 @@ public class StationMetadata {
 
 	/**
 	 * Return the station metadata version.
-	 * @return the station metadata version. 
+	 * @return the station metadata version.
 	 */
 	public Integer getVersion () {
 		return this.version;
 	}
-
 }
