@@ -32,6 +32,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -463,6 +464,113 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 	}
 
 	/**
+	 * Determine the read end based on the requested readEnd:
+	 * - default the time zone to the computer time if not specified.
+	 * @param readEnd original read end from global input period or command parameter
+	 * @return the read end as requested, with requested time zone
+	 */
+	private DateTime determineReadEndRequested ( DateTime readEnd ) {
+		String routine = getClass().getSimpleName() + ".determineReadEndRequested";
+		DateTime readEndRequested = null;
+		if ( readEnd == null ) {
+			// Read end was not specified:
+			// - use the current time, round forward to 5 minutes
+			readEndRequested = new DateTime ( DateTime.DATE_CURRENT );
+			// The timezone from the computer is used.
+			// Round forward to five minutes.
+			readEndRequested.round(1, TimeInterval.MINUTE, 5);
+			Message.printStatus(2, routine, "Using default read end (current time rounded forward to 5 minutes), with computer timezone: " + readEndRequested );
+		}
+		else {
+			// Read end was specified:
+			// - make sure that the time zone is set in a copy of the DateTime
+			readEndRequested = new DateTime(readEnd);
+			if ( (readEndRequested.getTimeZoneAbbreviation() == null) || readEndRequested.getTimeZoneAbbreviation().isEmpty() ) {
+				// No time zone in the read start so use the computer time zone.
+				ZoneId zone = ZoneId.systemDefault();
+				readEndRequested.setTimeZone(zone.toString());
+				Message.printStatus(2, routine, "Using specified read end with computer timezone: " + readEndRequested );
+			}
+			else {
+				Message.printStatus(2, routine, "Using specified read end with specified timezone: " + readEndRequested );
+			}
+		}
+		return readEndRequested;
+	}
+
+	/**
+	 * Determine the read end in UTC based on the requested read end.
+	 * @param readEndRequested the requested read end, with timezone specified
+	 * @return the read end as requested, with UTC time zone
+	 */
+	private DateTime determineReadEndUTC ( DateTime readEndRequested ) {
+		String routine = getClass().getSimpleName() + ".determineReadEndUTC";
+		// Create a ZonedDateTime using the values in readEndRequested.
+		ZonedDateTime zonedDateTime = readEndRequested.toZonedDateTime(null);
+		// Get a LocalDateTime in UTC.
+		ZonedDateTime utcDateTime = zonedDateTime.withZoneSameInstant(ZoneId.of("UTC"));
+		// Create a new DateTime with the values from the LocalDateTime and the same precision as the original readEndRequested.
+		int behavior = (int)readEndRequested.getBehaviorFlag();
+		DateTime readEndUTC = new DateTime ( utcDateTime, behavior, null );
+		Message.printStatus(2, routine, "Using specified read end UTC: " + readEndUTC );
+		return readEndUTC;
+	}
+	
+	/**
+	 * Determine the read start based on the requested readStart:
+	 * - default the time zone to the computer time if not specified.
+	 * @param readStart original read start from global input period or command parameter
+	 * @return the read start as requested, with requested time zone
+	 */
+	private DateTime determineReadStartRequested ( DateTime readStart ) {
+		String routine = getClass().getSimpleName() + ".determineReadStartRequested";
+		DateTime readStartRequested = null;
+		if ( readStart == null ) {
+			// Read start was not specified:
+			// - use the current time, subtract 30 days, and round back to 5 minutes
+			readStartRequested = new DateTime ( DateTime.DATE_CURRENT );
+			// The timezone from the computer is used.
+			readStartRequested.addDay(-30);
+			// Round down to five minutes.
+			readStartRequested.round(-1, TimeInterval.MINUTE, 5);
+			Message.printStatus(2, routine, "Using default read start (30 days earlier rounded back to 5 minutes), with computer timezone: " + readStartRequested );
+		}
+		else {
+			// Read start was specified:
+			// - make sure that the time zone is set in a copy of the DateTime
+			readStartRequested = new DateTime(readStart);
+			if ( (readStartRequested.getTimeZoneAbbreviation() == null) || readStartRequested.getTimeZoneAbbreviation().isEmpty() ) {
+				// No time zone in the read start so use the computer time zone.
+				ZoneId zone = ZoneId.systemDefault();
+				readStartRequested.setTimeZone(zone.toString());
+				Message.printStatus(2, routine, "Using specified read start with computer timezone: " + readStartRequested );
+			}
+			else {
+				Message.printStatus(2, routine, "Using specified read start with specified timezone: " + readStartRequested );
+			}
+		}
+		return readStartRequested;
+	}
+	
+	/**
+	 * Determine the read start in UTC based on the requested read start.
+	 * @param readStartRequested the requested read start, with timezone specified
+	 * @return the read start as requested, with UTC time zone
+	 */
+	private DateTime determineReadStartUTC ( DateTime readStartRequested ) {
+		String routine = getClass().getSimpleName() + ".determineReadStartUTC";
+		// Create a ZonedDateTime using the values in readStartRequested.
+		ZonedDateTime zonedDateTime = readStartRequested.toZonedDateTime(null);
+		// Get a LocalDateTime in UTC.
+		ZonedDateTime utcDateTime = zonedDateTime.withZoneSameInstant(ZoneId.of("UTC"));
+		// Create a new DateTime with the values from the LocalDateTime and the same precision as the original readStartRequested.
+		int behavior = (int)readStartRequested.getBehaviorFlag();
+		DateTime readStartUTC = new DateTime ( utcDateTime, behavior, null );
+		Message.printStatus(2, routine, "Using specified read start UTC: " + readStartUTC );
+		return readStartUTC;
+	}
+
+	/**
  	* Get the properties for the plugin.
  	* A copy of the properties map is returned so that calling code cannot change the properties for the plugin.
  	* @return plugin properties map.
@@ -723,7 +831,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 		String locId = "";
     	if ( useTsid ) {
     		// Use the LocType and ts_id.
-   			locId = "ts_id:" + tableModel.getValueAt(row,tm.COL_TS_ID);
+   			locId = "ts_id:" + tableModel.getValueAt(row,tm.COL_TSID);
     	}
     	else {
     		// Use the station ID for the location.
@@ -980,9 +1088,15 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
  	* <pre>
  	* </pre>
  	* @param datastreamId identifier for the data stream
+ 	* @param readStart start for data reading, can be in any time zone
+ 	* @param readEnd end for data reading, can be in any time zone
+ 	* @param timeout timeout in seconds for web service requests
  	* @return the list of Station objects
  	*/
-	private DatastreamDatapoint readDatastreamDatapoint ( String datastreamId, DateTime readStart, DateTime readEnd ) throws IOException {
+	private DatastreamDatapoint readDatastreamDatapoint (
+		String datastreamId,
+		DateTime readStart, DateTime readEnd,
+		Integer timeout ) throws IOException {
 		String routine = getClass().getSimpleName() + ".readDatastreamDatapointList";
 		checkTokenExpiration();
 		StringBuilder urlString = new StringBuilder(getServiceRootURI().toString());
@@ -1004,6 +1118,9 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 			//Message.printStatus(2, routine, "Reading datastream datapoint list using token: " + this.token.getAccessToken());
 		}
 		int timeoutSeconds = 300;
+		if ( timeout != null ) {
+			timeoutSeconds = timeout;
+		}
 		UrlReader urlReader = new UrlReader(urlStringEncoded, requestProperties, null, timeoutSeconds*1000 );
 		UrlResponse urlResponse = null;
 		try {
@@ -1436,18 +1553,15 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
      * Read a single time series given its time series identifier.
      * @param tsidReq requested time series identifier.
      * The output time series may be different depending on the requested properties.
-     * @param readStart start of read, will be set to 'periodStart' service parameter.
-     * @param readEnd end of read, will be set to 'periodEnd' service parameter.
+     * @param readStart start of read, will be set to 'periodStart' service parameter, can be in any time zone
+     * @param readEnd end of read, will be set to 'periodEnd' service parameter, can be in any time zone
      * @param readProperties additional properties to control the query:
      * <ul>
-     * <li> "Debug" - if true, turn on debug for the query</li>
+     * <li> "Debug" - Boolean, if true, turn on debug for the query</li>
      * <li> "IrregularInterval" - irregular interval (e.g., "IrregHour" to use instead of TSID interval,
      *      where the TSID intervals corresponds to the web services.</li>
-     * <li> "Read24HourAsDay" - string "false" (default) or "true" indicating whether 24Hour interval time series
-     *      should be output as 1Day time series.</li>
-     * <li> "ReadDayAs24Hour" - string "false" (default) or "true" indicating whether day interval time series
-     *      should be output as 24Hour time series.</li>
-     * <li> "Timezone" - timezone such as "America/Denver" to convert from Campbell Cloud UTC
+     * <li> "Timeout" - timeout (Integer seconds), for web service requests</li>
+     * <li> "Timezone" - timezone such as "America/Denver" to convert from Campbell Cloud UTC</li>
      * </ul>
      * @return the time series or null if not read
      */
@@ -1470,84 +1584,44 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	}
     	String IrregularInterval = null;
     	TimeInterval irregularInterval = null;
-    	//boolean read24HourAsDay = false;
-    	//boolean readDayAs24Hour = false;
     	Object object = readProperties.get("IrregularInterval");
     	if ( object != null ) {
     		IrregularInterval = (String)object;
     		irregularInterval = TimeInterval.parseInterval(IrregularInterval);
     	}
-    	/*
-    	object = readProperties.get("Read24HourAsDay");
+    	// Allow the timeout to be set.
+    	object = readProperties.get("Timeout");
+    	Integer timeoutSeconds = null;
     	if ( object != null ) {
-    		String Read24HourAsDay = (String)object;
-    		if ( Read24HourAsDay.equalsIgnoreCase("true") ) {
-    			read24HourAsDay = true;
-    		}
+    		timeoutSeconds = (Integer)object;
     	}
-    	object = readProperties.get("ReadDayAs24Hour");
-    	if ( object != null ) {
-    		String ReadDayAs24Hour = (String)object;
-    		if ( ReadDayAs24Hour.equalsIgnoreCase("true") ) {
-    			readDayAs24Hour = true;
-    		}
-    	}
-    	*/
-    	// Default time zone is the computer local time:
+    	// Default output time zone UTC:
     	// - will be overridden below if
-    	ZoneId zoneId = ZoneId.systemDefault();
-    	String timezone = zoneId.toString();
+    	ZoneId outputZoneId = ZoneId.of("UTC");
+    	String timezone = outputZoneId.toString();
     	object = readProperties.get("Timezone");
     	if ( object != null ) {
     		// Have a time zone to use for output.
     		timezone = (String)object;
-    		//zoneOffset = ZoneOffset.of(timezone);
+    		outputZoneId = ZoneId.of(timezone);
     	}
-    	Message.printStatus(2, routine, "Default timezone for output is \"" + timezone +
-    		"\" (will be used if requested input period does not specify time zone and TimeZone parameter is not specified).");
+    	Message.printStatus(2, routine, "Output timezone is \"" + timezone + "\".");
+    	if ( timezone.equals("UTC") ) {
+    		Message.printStatus(2, routine, "  Campbell Cloud UTC data will be output without converting the time zone.");
+    	}
+    	else {
+    		Message.printStatus(2, routine, "  Campbell Cloud UTC data will be converted to \"" + timezone + "\".");
+    	}
 
-		// The default period if not specified is the last 30 days:
-		// - if hourly data observations are measured, 24x30 = 720 values will result, which is within the 1500 limit data point requests
-		// - maybe need to round, but can't really do with irregular time series?
-		if ( readEnd == null ) {
-			readEnd = new DateTime ( DateTime.DATE_CURRENT );
-			readEnd.setTimeZone(timezone);
-			Message.printStatus(2, routine, "Using default read end: " + readEnd );
-		}
-		else {
-			// Make sure that the time zone is set in a copy of the DateTime.
-			readEnd = new DateTime(readEnd);
-			if ( (readEnd.getTimeZoneAbbreviation() == null) || readEnd.getTimeZoneAbbreviation().isEmpty() ) {
-				// No time zone in the read end so use the override time zone.
-				readEnd.setTimeZone(timezone);
-				Message.printStatus(2, routine, "Using specified read end with default timezone: " + readEnd );
-			}
-			else {
-				Message.printStatus(2, routine, "Using specified read end with specified timezone: " + readEnd );
-			}
-		}
-		if ( readStart == null ) {
-			readStart = new DateTime ( DateTime.DATE_CURRENT );
-			readStart.setTimeZone(timezone);
-			readStart.addDay(-30);
-		}
-		else {
-			// Make sure that the time zone is set in a copy of the DateTime.
-			readStart = new DateTime(readStart);
-			if ( (readStart.getTimeZoneAbbreviation() == null) || readStart.getTimeZoneAbbreviation().isEmpty() ) {
-				// No time zone in the read start so use the override time zone.
-				readStart.setTimeZone(timezone);
-				Message.printStatus(2, routine, "Using specified read start with default timezone: " + readStart );
-			}
-			else {
-				Message.printStatus(2, routine, "Using specified read start with specified timezone: " + readStart );
-			}
-		}
+		// Determine the period to read:
+		// - 'readStartRequested' = as requested, defaulting to computer time zone if necessary
+		// - 'readEndRequested' = as requested, defaulting to computer time zone if necessary
+    	Message.printStatus(2, routine, "Reading requested period readStart=" + readStart + " to readEnd=" + readEnd);
+		DateTime readStartRequested = determineReadStartRequested ( readStart );
+		DateTime readStartUTC = determineReadStartUTC ( readStartRequested );
 
-		// Set the zone ID here after checks on the read period and Timezone property:
-		// - the read start timezone should be OK by here
-   		zoneId = ZoneId.of(readStart.getTimeZoneAbbreviation());
-		Message.printStatus(2, routine, "Data points will be converted from UTC to " + zoneId );
+		DateTime readEndRequested = determineReadEndRequested ( readEnd );
+		DateTime readEndUTC = determineReadEndUTC ( readEndRequested );
 
     	TS ts = null;
 
@@ -1612,25 +1686,25 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	// Set the period to bounding data records:
     	// - the period may be reset below depending on time series interval, interval end adjustments, etc.
     	// - TODO smalers 2023-01-17 may need to do more to handle the case of interval data timestamps being adjusted below
-    	if ( readStart != null ) {
-    		ts.setDate1Original(readStart);
+    	if ( readStartUTC != null ) {
+    		ts.setDate1Original(readStartUTC);
     		/*
     		if ( TimeInterval.isRegularInterval(tsident.getIntervalBase()) ) {
     			// Round the start down to include a full interval.
     			readStart.round(-1, tsident.getIntervalBase(), tsident.getIntervalMult());
     		}
     		*/
-    		ts.setDate1(readStart);
+    		ts.setDate1(readStartUTC);
     	}
-    	if ( readEnd != null ) {
-    		ts.setDate2Original(readEnd);
+    	if ( readEndUTC != null ) {
+    		ts.setDate2Original(readEndUTC);
     		/*
     		if ( TimeInterval.isRegularInterval(tsident.getIntervalBase()) ) {
     			// Round the end up to include a full interval
     			readEnd.round(1, tsident.getIntervalBase(), tsident.getIntervalMult());
     		}
     		*/
-    		ts.setDate2(readEnd);
+    		ts.setDate2(readEndUTC);
     	}
 
     	// Set standard properties:
@@ -1647,7 +1721,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	if ( readData ) {
     		// Also read the time series values.
     		String datastreamId = tscatalog.getDatastreamId();
-    		DatastreamDatapoint datastreamDatapoint = readDatastreamDatapoint ( datastreamId, readStart, readEnd );
+    		DatastreamDatapoint datastreamDatapoint = readDatastreamDatapoint ( datastreamId, readStartUTC, readEndUTC, timeoutSeconds );
 
     		// The data are ordered with oldest first.
 
@@ -1655,11 +1729,11 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     		if ( dataList.size() > 0 ) {
     			// Set the period based on data from the first and last values:
     			// - this values may be adjusted below
-    			//ts.setDate1(dataList.get(0).getTimestampAsDateTime(zoneOffset));
-    			ts.setDate1(dataList.get(0).getTimestampAsDateTime(zoneId));
+    			DateTime readStartOutput = dataList.get(0).getTimestampAsDateTime(outputZoneId);
+    			ts.setDate1(readStartOutput);
     			ts.setDate1Original(ts.getDate1());
-    			//ts.setDate2(dataList.get(dataList.size() - 1).getTimestampAsDateTime(zoneOffset));
-    			ts.setDate2(dataList.get(dataList.size() - 1).getTimestampAsDateTime(zoneId));
+    			DateTime readEndOutput = dataList.get(dataList.size() - 1).getTimestampAsDateTime(outputZoneId);
+    			ts.setDate2(readEndOutput);
     			ts.setDate2Original(ts.getDate2());
 
     			// Allocate the time series data array:
@@ -1669,40 +1743,13 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 
     			// Loop through the data values and set the data.
     			for ( DatastreamDatapointData data : dataList ) {
-    				//DateTime dt = data.getTimestampAsDateTime ( zoneOffset );
-    				DateTime dt = data.getTimestampAsDateTime ( zoneId );
+    				DateTime dt = data.getTimestampAsDateTime ( outputZoneId );
     				ts.setDataValue(dt, data.getValue());
     			}
-
-    			/*
-    			if ( badDateTimeCount > 0 ) {
-    				//problems.add("Time series had " + badDateTimeCount + " bad timestamps.  See the log file.");
-    				String message = "  Time series had " + badDateTimeCount + " bad timestamps.  See the log file.";
-    				Message.printWarning(3,routine,message);
-    				throw new Exception (message);
-    			}
-    			if ( badValueCount > 0 ) {
-    				//problems.add("Time series had " + badValueCount + " bad data values.  See the log file.");
-    				String message = "  Time series had " + badValueCount + " bad data values.  See the log file.";
-    				Message.printWarning(3,routine,message);
-    				throw new Exception(message);
-    			}
-    			if ( badInterpolationTypeCount > 0 ) {
-    				String message = "  Time series had " + badInterpolationTypeCount + " bad interpolation types.  See the log file.";
-    				//problems.add("Time series had " + badInterpolationTypeCount + " bad interpolation types.  See the log file.");
-    				Message.printWarning(3,routine,message);
-    				throw new Exception (message);
-    			}
-    			if ( valueErrorCount > 0 ) {
-    				String message = "  Time series had " + valueErrorCount + " errors setting values.  See the log file.";
-    				//problems.add("Time series had " + badDateTimeCount + " bad timestamps.  See the log file.");
-    				Message.printWarning(3,routine,message);
-    			}
-    			*/
     		}
     		else {
     			Message.printStatus(2, routine, "No datapoints read for datastream \""
-    				+ datastreamId + "\" for readStart=" + readStart + " to " + readEnd );
+    				+ datastreamId + "\" for readStartUTC=" + readStartUTC + " to readEndUTC=" + readEndUTC );
     		}
 
     	}
@@ -1791,7 +1838,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 			// Have enough data to set the time series identifier:
 			// - this should be the same as the table model getTimeSeriesIdentifierFromTableModel method,
 			//   but the table model is not active here
-			tscatalog.setTsId(tscatalog.getStationId() + "." + TS_DATA_SOURCE + "." + tscatalog.getDataType() + "." + tscatalog.getDataInterval());
+			tscatalog.setTSID(tscatalog.getStationId() + "." + TS_DATA_SOURCE + "." + tscatalog.getDataType() + "." + tscatalog.getDataInterval());
 			Station station = Station.findStationForStationId ( this.stationList, datastream.getStationId() );
 			if ( station != null ) {
 				Message.printStatus(2, routine, "Found station \"" + station.getId() + "\" for datastream ID \"" + datastream.getId() + "\".");
@@ -1872,7 +1919,7 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
 					// Don't compare with itself.
 					continue;
 				}
-				if ( tscatalog.getTsId().equals(tscatalog2.getTsId()) ) {
+				if ( tscatalog.getTSID().equals(tscatalog2.getTSID()) ) {
 					// The time series identifier is not unique.
 					duplicateTsid = true;
 					break;

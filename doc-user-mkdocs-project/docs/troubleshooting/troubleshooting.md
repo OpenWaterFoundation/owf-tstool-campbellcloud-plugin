@@ -4,7 +4,7 @@ Troubleshooting TSTool for Campbell Cloud involves confirming that the core prod
 Issues may also be related to Campbell Cloud data.
 
 *   [Troubleshooting Core TSTool Product](#troubleshooting-core-tstool-product)
-*   [Troubleshooting Campbell Cloud TSTool Integration](#troubleshooting-campbellcloud-tstool-integration)
+*   [Troubleshooting Campbell Cloud TSTool Integration](#troubleshooting-campbell-cloud-tstool-integration)
     +   [***Commands(Plugin)*** Menu Contains Duplicate Commands](#commandsplugin-menu-contains-duplicate-commands)
     +   [Web Service Datastore Returns no Data - Missing Token](#web-service-datastore-returns-no-data-missing-token)
     +   [Web Service Datastore Returns no Data](#web-service-datastore-returns-no-data)

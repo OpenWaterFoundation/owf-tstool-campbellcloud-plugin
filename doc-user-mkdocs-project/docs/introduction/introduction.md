@@ -1,7 +1,7 @@
 # TSTool Campbell Cloud Plugin / Introduction #
 
 *   [Introduction](#introduction)
-*   [TSTool use with Campbell Cloud Web Services](#tstool-use-with-campbellcloud-web-services)
+*   [TSTool use with Campbell Cloud Web Services](#tstool-use-with-campbell-cloud-web-services)
 
 ----------------------
 
@@ -36,14 +36,14 @@ The [Campbell Cloud datastore documentation](../datastore-ref/CampbellCloud/Camp
 The [`ReadCampbellCloud`](../command-ref/ReadCampbellCloud/ReadCampbellCloud.md) command can be used to read time series,
 in addition to [time series identifiers](../command-ref/TSID/TSID.md) that are generated from the main TSTool interface.
 
-See the following examples showing how to query air temperature time series and the resulting time series graph.
+The following examples showing how to query battery voltage (`BattVoltage`) time series and the resulting time series graph.
 
 **<p style="text-align: center;">
 ![tstool-main](tstool-main.png)
 </p>**
 
 **<p style="text-align: center;">
-TSTool Main Interface (<a href="../tstool-main.png">see also the full-size image)</a>
+TSTool Main Interface (<a href="../tstool-main.png">see full-size image)</a>
 </p>**
 
 **<p style="text-align: center;">
@@ -51,5 +51,56 @@ TSTool Main Interface (<a href="../tstool-main.png">see also the full-size image
 </p>**
 
 **<p style="text-align: center;">
-TSTool Graph (<a href="../tstool-graph.png">see also the full-size image)</a>
+TSTool Graph for a Historical Period (<a href="../tstool-graph.png">see full-size image)</a>
+</p>**
+
+Campbell Cloud data measurement intervals and timestamps vary depending on the station configuration and sensors that are used.
+For example, the following illustrate Campbell Aspen 10 station battery voltage (`BattVoltage`) data for several stations.
+Note that the graph appears to show a 10-minute interval for data, which are instantaneous samples.
+
+**<p style="text-align: center;">
+![tstool-graph](tstool-graph-VB.png)
+</p>**
+
+**<p style="text-align: center;">
+TSTool Graph for Battery Voltage Data (<a href="../tstool-graph-VB.png">see full-size image)</a>
+</p>**
+
+However, a closer examination of the tabular data shows that the timestamps for each value
+have regular 10-minute spacing, but the second and sub-second values are not zero,
+as shown in the following table.
+
+**<p style="text-align: center;">
+![tstool-graph](tstool-table-VB.png)
+</p>**
+
+**<p style="text-align: center;">
+TSTool Table for Battery Voltage Data (<a href="../tstool-table-VB.png">see full-size image)</a>
+</p>**
+
+The following graph illustrates Aspen 10 accumulated precipitation (`TotalAccumulation`) for several stations.
+Note that the graph appears to show a 5-minute interval for data, which are total accumulation as of the timestamp.
+
+**<p style="text-align: center;">
+![tstool-graph](tstool-graph-PC.png)
+</p>**
+
+**<p style="text-align: center;">
+TSTool Graph for Accumulated Precitation Data (<a href="../tstool-graph-PC.png">see full-size image)</a>
+</p>**
+
+A closer examination of the tabular data confirms that the timestamps for each value
+have regular 5-minute spacing, and the second and sub-second values are zero,
+which is indicative of a computed value.
+
+The nuances of data requires that software that consumes the data is able to handle Campbell Cloud conventions.
+See the [Campbell Cloud DataStore](../datastore-ref/CampbellCloud/CampbellCloud.md)
+documentation for more details about data conventions.
+
+**<p style="text-align: center;">
+![tstool-graph](tstool-table-PC.png)
+</p>**
+
+**<p style="text-align: center;">
+TSTool Table for a Accumulated Precipitation Data (<a href="../tstool-table-PC.png">see full-size image)</a>
 </p>**
