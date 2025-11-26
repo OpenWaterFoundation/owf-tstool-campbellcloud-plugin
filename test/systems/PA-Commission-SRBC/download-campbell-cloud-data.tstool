@@ -1,0 +1,185 @@
+# Open the log file:
+# - if running on Windows, assume development and output to the 'results' folder
+# - if not running on Windows, save to /var/log/systems/PA-Commission-SRBC folder
+If(Name="If_Windows_Log",FileDoesNotExist="/dev/null")
+    # Windows.
+    CreateFolder(Folder="results",IfFolderExists="Ignore")
+    StartLog(LogFile="results/download-campbell-cloud-data.tstool.log")
+EndIf(Name="If_Windows_Log")
+If(Name="If_Linux_Log",FileExists="/dev/null")
+    # StartLog(LogFile="/var/log/systems/PA-Commission-SRBC/download-campbell-cloud-data.tstool.log")
+EndIf(Name="If_Linux_Log")
+#===============================================================================
+# Workflow to read PA-Commission-SRBC data from Campbell Cloud and hand off to the NovaStar dataloader:
+# - station list is initially read from Campbell cloud but may read from NovaStar in the future
+# - the workflow is expected to be run as a NovaStar scheduled process every 5 minutes
+# - to help avoid minor issues with data availability, read 3 hours of data
+#   (NovaStar will ignore refiled data)
+# - round the InputEnd to 5 minutes forward
+# - the different Campbell Cloud stations report data at different intervals
+#   (e.g., RangeVUE is less frequent regular reports if no change in data)
+#
+#@version 1.0.0
+#@versionDate 2025-11-24
+#
+# History:
+# 1.0.0, 2025-11-24 - initial version
+#===============================================================================
+#                          General Setup
+#===============================================================================
+# Controlling properties:
+# - 'CurrentTime' = current date/time for logging
+# - 'DataLoaderTime' = current date/time for data loader CSV file name
+# - 'DoCreateDataloaderFile' = true if output file should be created for the NovaStar dataloader
+# - 'RunMode' = set to "Development" for development and "Production" otherwise
+SetProperty(PropertyName="CurrentTime",PropertyType="DateTime",PropertyValue="CurrentToSecond")
+FormatDateTimeProperty(PropertyName="DataLoaderTime",DateTimePropertyName="CurrentTime",Format="%Y%m%d%H%M")
+SetProperty(PropertyName="DoCreateDataloaderFile",PropertyType="Boolean",PropertyValue="True")
+SetProperty(PropertyName="RunMode",PropertyType="String",PropertyValue="Development")
+#
+# Set the input period to:
+# - 'InputEnd' = rounded to 5 minutes in the future
+# - 'InputStart' = 'InputEnd' minus 6 hours (can adjust based on production system behavior)
+SetInputPeriod(InputStart="CurrentToSecond.Round(5Min).RoundDirection(>) - 3Hour",InputEnd="CurrentToSecond.Round(5Min).RoundDirection(>)")
+#
+# Set properties based on whether RunMode is Development or Production:
+# - 'DataloaderFolder' - where to creat the output file from Campbell Cloud data download
+# - 'OutputFolder' - where to creat other output files (not log and not dataloader files)
+If(Name="If_RunMode_Development",Condition="${RunMode} == Development")
+    SetProperty(PropertyName="DataloaderFolder",PropertyType="String",PropertyValue="results")
+    SetProperty(PropertyName="OutputFolder",PropertyType="String",PropertyValue="results")
+EndIf(Name="If_RunMode_Development")
+If(Name="If_RunMode_Production",Condition="${RunMode} == Production")
+EndIf(Name="If_RunMode_Production")
+#===============================================================================
+#   Define table to map Campbell Cloud datastream field to NovaStar data type
+#===============================================================================
+# Create an in-memory table to lookup NovaStar data type from Campbell Cloud data type, which maps
+# - Campbell Cloud datastram field
+# - NovaStar data type (use the SHEF parameter code since the dataloader can handle easier)
+NewTable(TableID="CampbellCloudToNovaStarDataTypeTable",Columns="CCDataType,string;NSDataType,string")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:AirTemp,NSDataType:TA")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:BattVoltage,NSDataType:VB")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:BP,NSDataType:PA")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:Rain,NSDataType:PP")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:RH,NSDataType:XR")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:Solar,NSDataType:RW")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:Stage,NSDataType:HG")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:TotalAccumulation,NSDataType:PC")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:WindDir,NSDataType:UD")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:WindSpd,NSDataType:US")
+InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDataType:WindSpdMax,NSDataType:UP")
+#===============================================================================
+#               Read Campbell Cloud time series catalog and stations
+#===============================================================================
+# Read the full Campbell Cloud time series catalog:
+# - only read the metadata (ReadTimeSeries=False)
+# - this table is used to determine other data as needed
+# - write it to Excel temporarily to help with system setup
+ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="*",Interval="*",ReadTimeSeries="False",TimeSeriesCatalogTableID="CCTimeSeriesCatalogTable")
+NewExcelWorkbook(OutputFile="${OutputFolder}/download-campbell-cloud-data-tscatalog.xlsx",Worksheets="tscatalog",KeepOpen="True")
+WriteTableToExcel(TableID="CCTimeSeriesCatalogTable",OutputFile="${OutputFolder}/download-campbell-cloud-data-tscatalog.xlsx",Worksheet="tscatalog",ExcelAddress="A1",ExcelColumnNames="FirstRowInRange",ColumnWidths="*:Auto")
+#
+# Create a table containing the unique list of Campbell Cloud stations, with asset information:
+# - this is used to iterate below when requesting time series
+CopyTable(TableID="CCTimeSeriesCatalogTable",NewTableID="CCStationsTable",IncludeColumns="StationId,StationName,Assetid,AssetDescription",DistinctColumns="StationId,StationName,Assetid,AssetDescription",RowCountProperty="CCStationsTableRowCount")
+#
+# Sort the stations by station name
+SortTable(TableID="CCStationsTable",SortColumns="StationName")
+#===============================================================================
+#               Read NovaStar time series catalog and stations
+#===============================================================================
+# Read the NovaSTar time series catalog for scaled value time series:
+# - this is used to look up the NovaStar stationNumId from Campbell Cloud station ID stored in remote tag name
+# - also create a table listing unique NovaStar stations with remote tag name (Campbell Cloud station ID)
+ReadNovaStar(DataStore="nsdataws-nscloud",DataType="*",Interval="*",Where1="IncludeScaledTS;Matches;Only",ReadTimeSeries="False",TimeSeriesCatalogTableID="NSTimeSeriesCatalogTable")
+CopyTable(TableID="NSTimeSeriesCatalogTable",NewTableID="NSStationsTable",IncludeColumns="LocationId,StationNumId,StationName,StationRemoteTag",DistinctColumns="LocationId,StationNumId,StationName,StationRemoteTag")
+#===============================================================================
+#                Join Campbell Cloud and NovaStar station tables.
+#===============================================================================
+CopyTable(TableID="CCStationsTable",NewTableID="JoinedStationsTable")
+JoinTables(TableID="JoinedStationsTable",TableToJoinID="NSStationsTable",JoinColumns="StationId:StationRemoteTag",RowCountProperty="JoinedStationsTableRowCount")
+# Check that the joined table size is the same size as the Campbell Cloud station list.
+If(Name="If_Stations_Count",Condition="${CCStationsTableRowCount} != ${JoinedStationsTableRowCount}")
+    Message(Message="The number of Campbell Cloud stations (${CCStationsTableRowCount}) is not the same as the joined NovaStar stations (${JoinedStationsTableRowCount}).  The dataloader file may be incomplete.",CommandStatus="WARNING")
+EndIf(Name="If_Stations_Count")
+#===============================================================================
+#                      Read Campbell Cloud time series
+#===============================================================================
+# Loop through the stations to process:
+# - read the Campbell Cloud data types in alphbetical order
+# - check whether to read a data type based on the asset description
+For(Name="For_Stations",IteratorProperty="StationId",TableID="JoinedStationsTable",TableColumn="StationId",TablePropertyMap="StationName:StationName,AssetDescription:AssetDescription")
+    #
+    # 'AssetDescription=ClimaVue station' have:
+    #    Campbell Cloud           NovaStar
+    #    -------------------------------------------------
+    #    AirTemp                  TA - TempAir
+    #    BattVoltage              VB - VoltageBattery
+    #    BP                       PA - PressureAtmospheric
+    #    Rain                     PP - Precip-Total.5Minute (5 minute totalized rain)
+    #    RH                       XR - HumidityRelative
+    #    Solar                    RW - RadiationSolarTotal
+    #    WindDir                  UD - WindDir
+    #    WindSpd                  US - WindSpeed
+    #    WindSpdMax               UP - WindSpeedPeak
+    If(Name="If_StationIs_ClimaVUE",Condition="${AssetDescription} == ClimaVUE station")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="AirTemp",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="BattVoltage",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="BP",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="Rain",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="RH",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="Solar",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="WindDir",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="WindSpd",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="WindSpdMax",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+    EndIf(Name="If_StationIs_ClimaVUE")
+    #
+    # 'AssetDescription=RainVue station' have:
+    #    Campbell Cloud           NovaStar
+    #    -------------------------------------------------
+    #    BattVoltage              VB - VoltageBattery
+    #    Rain                     PP - Precip-Total.5Minute (5 minute totalized rain)
+    #    TotalAccumulation        PC - PrecipAccum   (accumulated rain amount, not tips)
+    If(Name="If_StationIs_RainVUE",Condition="${AssetDescription} == RainVUE station")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="BattVoltage",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        # ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="Rain",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="TotalAccumulation",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+    EndIf(Name="If_StationIs_RainVUE")
+    #
+    # 'AssetDescription=RangeVue station' have:
+    #    Campbell Cloud           NovaStar
+    #    -------------------------------------------------
+    #    BattVoltage              VB - VoltageBattery
+    #    Stage                    HG - WaterLevelRiver
+    If(Name="If_StationIs_RangeVUE",Condition="${AssetDescription} == RangeVUE station")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="BattVoltage",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+        ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="Stage",Interval="IrregSecond",StationId="${StationId}",Alias="%L-%T-%I")
+    EndIf(Name="If_StationIs_RangeVUE")
+EndFor(Name="For_Stations")
+#===============================================================================
+#               Post-process time series to set additional properties
+#===============================================================================
+# Post-process time series to add additional properties:
+# - look up the NovaStar data type (SHEF parmeter code) from the Campbell Cloud data type
+# - look up the NovaStar station numid and set as a property
+For(Name="For_Result_TimeSeries",IteratorProperty="TSID",IteratorValueProperty="${ts:tsid}",TSList="AllTS",TimeSeriesPropertyMap="DataType:CCDataType")
+    # Get the properties from time series needed for lookups:
+    # - datastream field
+    # - station ID
+    SetPropertyFromTimeSeries(TSList="AllMatchingTSID",TSID="${TSID}",PropertyName="DatastreamField",PropertyValue="${ts:datastream.field}")
+    SetPropertyFromTimeSeries(TSList="AllMatchingTSID",TSID="${TSID}",PropertyName="StationId",PropertyValue="${ts:station.id}")
+    # Lookup the NovaStar datatype from the datastream field.
+    SetPropertyFromTable(TableID="CampbellCloudToNovaStarDataTypeTable",Column="NSDataType",ColumnIncludeFilters="CCDataType:${DatastreamField}",PropertyName="NSDataType")
+    SetTimeSeriesProperty(TSList="AllMatchingTSID",TSID="${TSID}",PropertyName="novastar.datatype",PropertyType="String",PropertyValue="${NSDataType}")
+    # Lookup the NovaStar stationNumId from the kpomed stations table.
+    SetPropertyFromTable(TableID="JoinedStationsTable",Column="LocationId",ColumnIncludeFilters="StationId:${StationId}",PropertyName="NSLocId")
+    SetTimeSeriesProperty(TSList="AllMatchingTSID",TSID="${TSID}",PropertyName="novastar.station.numid",PropertyType="String",PropertyValue="${NSLocId}")
+EndFor(Name="For_Result_TimeSeries")
+#===============================================================================
+#            Create the NovaStar dataloader CSV file to load data.
+#===============================================================================
+# Create the output file for the NovaStar dataloader.
+If(Name="If_Create_Dataloader_File",Condition="${DoCreateDataloaderFile} == True")
+    WriteTimeSeriesToDataStream(OutputFile="${DataloaderFolder}/${DataLoaderTime}-SRBC-CampbellCloud.csv",OutputFileHeaderFile="download-campbell-cloud-data-header-template.txt",OutputLineFormat="${ts:station.id},${ts:datastream.field},${ts:novastar.station.numid},${ts:novastar.datatype},${tsdata:datetime},${tsdata:value}",DateTimeFormat="%Y-%m-%dT%H:%M:%S")
+EndIf(Name="If_Create_Dataloader_File")

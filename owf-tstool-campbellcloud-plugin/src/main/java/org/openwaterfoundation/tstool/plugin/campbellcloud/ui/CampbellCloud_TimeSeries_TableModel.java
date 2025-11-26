@@ -66,7 +66,7 @@ public class CampbellCloud_TimeSeries_TableModel extends JWorksheet_AbstractRowT
 	public final int COL_ASSET_STATUS = 18;
 	public final int COL_ASSET_MAINT_MODE = 19;
 	//
-	public final int COL_TS_ID = 20;
+	public final int COL_TSID = 20;
 	public final int COL_PROBLEMS = 21;
 	public final int COL_DATASTORE = 22;
 	
@@ -112,7 +112,7 @@ public class CampbellCloud_TimeSeries_TableModel extends JWorksheet_AbstractRowT
 			case COL_STATION_LATITUDE: return Double.class;
 			case COL_STATION_LONGITUDE: return Double.class;
 			case COL_STATION_ELEVATION: return Double.class;
-			case COL_TS_ID: return Integer.class;
+			case COL_TSID: return Integer.class;
 			default: return String.class; // All others.
 		}
 	}
@@ -156,7 +156,7 @@ public class CampbellCloud_TimeSeries_TableModel extends JWorksheet_AbstractRowT
 			case COL_ASSET_MODEL : return "Asset Model";
 			case COL_ASSET_STATUS : return "Asset Status";
 			case COL_ASSET_MAINT_MODE : return "Maintenance Mode";
-			case COL_TS_ID: return "Time Series ID (TSID)";
+			case COL_TSID: return "TSTool Time Series ID (TSID)";
 			case COL_PROBLEMS: return "Problems";
 			case COL_DATASTORE: return "Datastore";
 
@@ -196,7 +196,7 @@ public class CampbellCloud_TimeSeries_TableModel extends JWorksheet_AbstractRowT
 		toolTips[COL_ASSET_MODEL] = "Asset model";
 		toolTips[COL_ASSET_STATUS] = "Asset status";
 		toolTips[COL_ASSET_MAINT_MODE] = "Asset maintenance mode";
-		toolTips[COL_TS_ID] = "Time series identifier";
+		toolTips[COL_TSID] = "Time series identifier";
 		toolTips[COL_PROBLEMS] = "Problems";
 		toolTips[COL_DATASTORE] = "Datastore name";
 	    return toolTips;
@@ -230,7 +230,7 @@ public class CampbellCloud_TimeSeries_TableModel extends JWorksheet_AbstractRowT
 		widths[COL_ASSET_MODEL] = 10;
 		widths[COL_ASSET_STATUS] =  10;
 		widths[COL_ASSET_MAINT_MODE] =  15;
-	    widths[COL_TS_ID] = 50;
+	    widths[COL_TSID] = 50;
 		widths[COL_PROBLEMS] = 30;
 		widths[COL_DATASTORE] = 20;
 		return widths;
@@ -295,7 +295,7 @@ public class CampbellCloud_TimeSeries_TableModel extends JWorksheet_AbstractRowT
 			case COL_ASSET_MODEL : return timeSeriesCatalog.getAssetModel();
 			case COL_ASSET_STATUS : return timeSeriesCatalog.getAssetStatus();
 			case COL_ASSET_MAINT_MODE : return timeSeriesCatalog.getAssetMaintMode();
-			case COL_TS_ID: return timeSeriesCatalog.getTsId();
+			case COL_TSID: return timeSeriesCatalog.getTSID();
 			case COL_PROBLEMS: return timeSeriesCatalog.formatProblems();			
 			case COL_DATASTORE: return this.datastore.getName();			
 			default: return "";

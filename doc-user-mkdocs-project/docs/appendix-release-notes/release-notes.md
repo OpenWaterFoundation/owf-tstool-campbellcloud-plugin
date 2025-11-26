@@ -20,16 +20,32 @@ TSTool and Plugin Version Compatibility
 
 | **Plugin Version** | **Required TSTool Version** | **Comments** |
 | -- | -- | -- |
-| 1.0.0 | >= 15.0.0 | TSTool and plugin use Java 11. |
+| 1.0.1 | >= 15.0.0 | Maintenance release to clean up issues for the initial production release. |
+| 1.0.0 | >= 15.0.0 | Initial release. |
 
 ## Release Note Details ##
 
 Release notes for specific versions are listed below,
 with repository issue number.
 
+*   [Version 1.0.1](#version-101)
 *   [Version 1.0.0](#version-100)
 
 ----------
+
+## Version 1.0.1 ##
+
+**Maintenance release to clean up issues for the initial production release.**
+
+*   ![change](change.png) Update the documentation for software changes and additional Campbell Cloud information.
+*   ![change](change.png) Update the [`TSID`](../command-ref/TSID/TSID.md) command:
+    +   Inserting `TSID` commands also inserts a comment above the command with descriptive information.
+        This requires at least TSTool 15.2.0.
+*   ![change](change.png) Update the [`ReadCampbellCloud`](../command-ref/ReadCampbellCloud/ReadCampbellCloud.md) command:
+    +   Add `ReadTimeSeries` and `TimeSeriesCatalogTableID` parameters to allow reading a list of time series into a table.
+    +   The `InputStart` and `InputEnd` time zone now defaults to the computer's time zone.
+    +   The `Timezone`, which specifies the output time zone, now defaults to `UTC`.
+    +   The `Timeout` parameter has been added to control the timeout for web services requests.
 
 ## Version 1.0.0 ##
 

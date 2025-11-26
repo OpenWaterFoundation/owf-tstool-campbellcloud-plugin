@@ -38,6 +38,7 @@ import rti.tscommandprocessor.core.TSCommandProcessor;
 import rti.tscommandprocessor.core.TSCommandProcessorUtil;
 import RTi.TS.TS;
 import RTi.TS.TSIdent;
+import RTi.TS.TSProgressListener;
 import RTi.Util.GUI.InputFilter_JPanel;
 import RTi.Util.IO.Command;
 import RTi.Util.IO.CommandDiscoverable;
@@ -51,11 +52,15 @@ import RTi.Util.IO.CommandWarningException;
 import RTi.Util.IO.InvalidCommandParameterException;
 import RTi.Util.IO.MissingObjectEvent;
 import RTi.Util.IO.ObjectListProvider;
+import RTi.Util.IO.Prop;
 import RTi.Util.IO.PropList;
 import RTi.Util.IO.AbstractCommand;
 import RTi.Util.Message.Message;
 import RTi.Util.Message.MessageUtil;
 import RTi.Util.String.StringUtil;
+import RTi.Util.Table.DataTable;
+import RTi.Util.Table.TableField;
+import RTi.Util.Table.TableRecord;
 import RTi.Util.Time.DateTime;
 import RTi.Util.Time.TimeInterval;
 
@@ -63,7 +68,7 @@ import RTi.Util.Time.TimeInterval;
 This class initializes, checks, and runs the ReadCampbellCloud() command.
 */
 public class ReadCampbellCloud_Command extends AbstractCommand
-implements Command, CommandDiscoverable, ObjectListProvider
+implements Command, CommandDiscoverable, ObjectListProvider, TSProgressListener
 {
 
 /**
@@ -82,6 +87,11 @@ List of time series read during discovery.
 These are TS objects but with mainly the metadata (TSIdent) filled in.
 */
 private List<TS> __discoveryTSList = null;
+
+/**
+The discovery table that is created.
+*/
+private DataTable __discoveryTable = null;
 
 /**
 Constructor.
@@ -107,22 +117,34 @@ throws InvalidCommandParameterException {
     CommandStatus status = getCommandStatus();
     status.clearLog(CommandPhaseType.INITIALIZATION);
 
+    // General (top).
     String DataStore = parameters.getValue ( "DataStore" );
     String DataType = parameters.getValue ( "DataType" );
     String Interval = parameters.getValue ( "Interval" );
+    // Single.
     String StationId = parameters.getValue ( "StationId" );
-    String InputStart = parameters.getValue ( "InputStart" );
-    String InputEnd = parameters.getValue ( "InputEnd" );
-    String IrregularInterval = parameters.getValue ( "IrregularInterval" );
-    //String Read24HourAsDay = parameters.getValue ( "Read24HourAsDay" );
-    //String ReadDayAs24Hour = parameters.getValue ( "ReadDayAs24Hour" );
-    String Debug = parameters.getValue ( "Debug" );
+    String TSID = parameters.getValue ( "TSID" );
+    boolean doTSID = false;
+    if ( (TSID != null) && !TSID.isEmpty() ) {
+    	doTSID = true;
+    }
+    // Multiple.
     String InputFiltersCheck = parameters.getValue ( "InputFiltersCheck" ); // Passed in from the editor, not an actual parameter.
     String Where1 = parameters.getValue ( "Where1" );
     String Where2 = parameters.getValue ( "Where2" );
     String Where3 = parameters.getValue ( "Where3" );
     String Where4 = parameters.getValue ( "Where4" );
     String Where5 = parameters.getValue ( "Where5" );
+    String ReadTimeSeries = parameters.getValue ( "ReadTimeSeries" );
+    // General (bottom).
+    String InputStart = parameters.getValue ( "InputStart" );
+    String InputEnd = parameters.getValue ( "InputEnd" );
+    String ReadData = parameters.getValue ( "ReadData" );
+    String IrregularInterval = parameters.getValue ( "IrregularInterval" );
+    //String Read24HourAsDay = parameters.getValue ( "Read24HourAsDay" );
+    //String ReadDayAs24Hour = parameters.getValue ( "ReadDayAs24Hour" );
+    String Timeout = parameters.getValue ( "Timeout" );
+    String Debug = parameters.getValue ( "Debug" );
 
 	if ( (DataStore == null) || DataStore.isEmpty() ) {
         message = "The datastore must be specified.";
@@ -130,6 +152,22 @@ throws InvalidCommandParameterException {
         status.addToLog ( CommandPhaseType.INITIALIZATION,
             new CommandLogRecord(CommandStatusType.FAILURE,
                 message, "Specify the datastore." ) );
+	}
+
+	if ( ((DataType == null) || DataType.isEmpty()) && !doTSID) {
+        message = "The data type must be specified.";
+		warning += "\n" + message;
+        status.addToLog ( CommandPhaseType.INITIALIZATION,
+            new CommandLogRecord(CommandStatusType.FAILURE,
+                message, "Specify the data type." ) );
+	}
+
+	if ( ((Interval == null) || Interval.isEmpty()) && !doTSID) {
+        message = "The interval must be specified.";
+		warning += "\n" + message;
+        status.addToLog ( CommandPhaseType.INITIALIZATION,
+            new CommandLogRecord(CommandStatusType.FAILURE,
+                message, "Specify the interval." ) );
 	}
 
 	// TODO SAM 2023-01-02 Need to check the WhereN parameters.
@@ -161,6 +199,16 @@ throws InvalidCommandParameterException {
             status.addToLog ( CommandPhaseType.INITIALIZATION,
                         new CommandLogRecord(CommandStatusType.FAILURE,
                                 message, "Specify a date/time or InputEnd." ) );
+		}
+	}
+
+	if ( (ReadData != null) && !ReadData.isEmpty() ) {
+		if ( !ReadData.equalsIgnoreCase(_True) && !ReadData.equalsIgnoreCase(_False) ) {
+            message = "Invalid ReadData parameter \"" + ReadData + "\"";
+			warning += "\n" + message;
+            status.addToLog ( CommandPhaseType.INITIALIZATION,
+                new CommandLogRecord(CommandStatusType.FAILURE,
+                    message, "Specify " + _False + " or " + _True + " (default)." ) );
 		}
 	}
 
@@ -246,6 +294,28 @@ throws InvalidCommandParameterException {
 		++whereCount;
 	}
 
+	if ( (whereCount == 0) && (DataType != null) && DataType.equals("*") && (ReadTimeSeries != null) && ReadTimeSeries.equalsIgnoreCase(this._True)) {
+        message = "DataType=*, no Where filters are specified, and ReadTimeSeries=True - not allowed because may query many time series.";
+		warning += "\n" + message;
+        status.addToLog ( CommandPhaseType.INITIALIZATION,
+            new CommandLogRecord(CommandStatusType.FAILURE,
+	            message, "Specify a data type, one or more Where filters, and/or ReadTimeSeries=False." ) );
+	}
+
+	boolean readTimeSeries = true;
+	if ( (ReadTimeSeries != null) && !ReadTimeSeries.isEmpty() ) {
+		if ( !ReadTimeSeries.equalsIgnoreCase(_True) && !ReadTimeSeries.equalsIgnoreCase(_False) ) {
+            message = "Invalid ReadTimeSeries parameter \"" + ReadTimeSeries + "\"";
+			warning += "\n" + message;
+            status.addToLog ( CommandPhaseType.INITIALIZATION,
+                new CommandLogRecord(CommandStatusType.FAILURE,
+                    message, "Specify " + _False + " or " + _True + " (default)." ) );
+		}
+		if ( ReadTimeSeries.equalsIgnoreCase(_False) ) {
+			readTimeSeries = false;
+		}
+	}
+
 	boolean readSingle = false;
 	boolean readMult = false;
 	if ( (StationId != null) && !StationId.isEmpty() ) {
@@ -280,9 +350,10 @@ throws InvalidCommandParameterException {
 	}
 	if ( !readSingle && !readMult ) {
 		// OK if the DataType is not *.
-		if ( DataType.equals("*") ) {
+		// Also OK if ReadTimeSeries=False.
+		if ( DataType.equals("*") && readTimeSeries ) {
 			// Not enough parameters are specified.
-        	message = "Parameters must be specified to match a single time series OR multiple time series (reading ALL time series is prohibited).";
+        	message = "Parameters must be specified to match a single time series OR multiple time series (reading ALL time series data is prohibited).";
 			warning += "\n" + message;
         	status.addToLog ( CommandPhaseType.INITIALIZATION,
             	new CommandLogRecord(CommandStatusType.FAILURE,
@@ -306,24 +377,30 @@ throws InvalidCommandParameterException {
 
     // Check for invalid parameters.
     List<String> validList = new ArrayList<>();
+    // General (top).
     validList.add ( "DataStore" );
-    //validList.add ( "TSID" );
-    validList.add ( "StationId" );
-    validList.add ( "TsShortName" );
     validList.add ( "DataType" );
-    validList.add ( "Statistic" );
     validList.add ( "Interval" );
+    // Single.
+    validList.add ( "StationId" );
+    validList.add ( "TSID" );
+    // Multiple.
     int numFilters = 25; // Make a big number so all are allowed.
     for ( int i = 1; i <= numFilters; i++ ) {
         validList.add ( "Where" + i );
     }
+    validList.add ( "ReadTimeSeries" );
+    validList.add ( "TimeSeriesCatalogTableID" );
+    // Bottom (general).
     validList.add ( "Alias" );
     validList.add ( "InputStart" );
     validList.add ( "InputEnd" );
+    validList.add ( "ReadData" );
     validList.add ( "IrregularInterval" );
     //validList.add ( "Read24HourAsDay" );
     //validList.add ( "ReadDayAs24Hour" );
     validList.add ( "Timezone" );
+    validList.add ( "Timeout" );
     validList.add ( "Debug" );
     warning = TSCommandProcessorUtil.validateParameterNames ( validList, this, warning );
 
@@ -343,14 +420,18 @@ throws InvalidCommandParameterException {
  * @param irregularInterval irregular interval to use for output time series
  * @param read24HourAsDay whether to read 24Hour time series as day interval
  * @param readDayAs24Hour whether to read daily time series as 24Hour interval
+ * @param timeout timeout in seconds
  * @param timezone time zone to be used for response, important for interval calculations
+ * @param tsProgressListener object that will listen for progress reading a time series
  */
 private HashMap<String,Object> createReadProperties (
 	boolean debug,
 	String irregularInterval,
 	//boolean read24HourAsDay,
 	//boolean readDayAs24Hour,
-	String timezone ) {
+	int timeout,
+	String timezone,
+	TSProgressListener tsProgressListener ) {
 	HashMap<String,Object> readProperties = new HashMap<>();
 	if ( (timezone != null) && !timezone.isEmpty() ) {
 		readProperties.put("TimeZone", timezone );
@@ -369,10 +450,129 @@ private HashMap<String,Object> createReadProperties (
 		readProperties.put("ReadDayAs24Hour", "True" );
 	}
 	*/
+	if ( timeout > 0 ) {
+		readProperties.put("Timeout", Integer.valueOf(timeout) );
+	}
 	if ( (timezone != null) && !timezone.isEmpty() ) {
 		readProperties.put("Timezone", timezone );
 	}
+	if ( tsProgressListener != null ) {
+		readProperties.put("ProgressListener", tsProgressListener );
+	}
 	return readProperties;
+}
+
+/**
+ * Create a data table from the time series catalog.
+ * @param dataStore the datastore used to read the data
+ * @param tsCatalogList list of TimeSeriesCatalog to convert into a table
+ * @param timeSeriesCatalogTableID identifier for the table to create
+ * @return a table for the catalog
+ */
+private DataTable createTimeSeriesCatalogTable ( CampbellCloudDataStore dataStore,
+	List<TimeSeriesCatalog> tsCatalogList, String timeSeriesCatalogTableID )
+throws Exception {
+	String routine = getClass().getSimpleName() + ".createTimeSeriesCatalogTable";
+	// Create the table columns (fields):
+	// - if any column cannot be created, let the command fail
+	// - use camelCase notation and no spaces to facilitate using property names that match
+	List<TableField> columnList = new ArrayList<>();
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "StationId", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "StationName", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "DataSource", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "DataType", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "Interval", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "Units", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "DatastreamId", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "DatastreamAlias", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "DatastreamField", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "DatastreamStatus", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_DOUBLE, "Longitude", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_DOUBLE, "Latitude", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_DOUBLE, "Elevation", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "AssetId", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "AssetName", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "AssetDescription", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "AssetManufacturer", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "AssetModel", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "AssetStatus", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_BOOLEAN, "MaintenanceMode", -1) );
+	columnList.add ( new TableField(TableField.DATA_TYPE_STRING, "TSID", -1) );
+	// Create the table from the column metadata.
+    DataTable table = new DataTable( columnList );
+	// Set the table identifier to the command parameter.
+	table.setTableID(timeSeriesCatalogTableID);
+    // Get the column numbers from the table:
+    // - do just in case there are any hidden columns
+	// - use the order of the table columns
+	int stationIdCol = table.getFieldIndex( "StationId" );
+	int stationNameCol = table.getFieldIndex( "StationName" );
+	int dataSourceCol = table.getFieldIndex( "DataSource" );
+	int dataTypeCol = table.getFieldIndex( "DataType" );
+	int intervalCol = table.getFieldIndex( "Interval" );
+	int unitsCol = table.getFieldIndex( "Units" );
+	int datastreamIdCol = table.getFieldIndex( "DatastreamId" );
+	int datastreamAliasCol = table.getFieldIndex( "DatastreamAlias" );
+	int datastreamFieldCol = table.getFieldIndex( "DatastreamField" );
+	int datastreamStatusCol = table.getFieldIndex( "DatastreamStatus" );
+	int longitudeCol = table.getFieldIndex( "Longitude" );
+	int latitudeCol = table.getFieldIndex( "Latitude" );
+	int elevationCol = table.getFieldIndex( "Elevation" );
+	int assetIdCol = table.getFieldIndex( "AssetId" );
+	int assetNameCol = table.getFieldIndex( "AssetName" );
+	int assetDescriptionCol = table.getFieldIndex( "AssetDescription" );
+	int assetManufacturerCol = table.getFieldIndex( "AssetManufacturer" );
+	int assetModelCol = table.getFieldIndex( "AssetModel" );
+	int assetStatusCol = table.getFieldIndex( "AssetStatus" );
+	int maintenanceModeCol = table.getFieldIndex( "MaintenanceMode" );
+	int tsidCol = table.getFieldIndex( "TSID" );
+
+	// Convert the catalog to table rows.
+
+	int icatalog = 0;
+	Message.printWarning ( 3, routine, "Creating table from " + tsCatalogList.size() + " time series catalog objects." );
+	int maxErrors = 50;
+	int errorCount = 0;
+	for ( TimeSeriesCatalog tscatalog : tsCatalogList ) {
+		++icatalog;
+		try {
+			TableRecord rec = table.emptyRecord();
+			rec.setFieldValue(stationIdCol, tscatalog.getStationId());
+			rec.setFieldValue(stationNameCol, tscatalog.getStationName());
+			rec.setFieldValue(dataSourceCol, tscatalog.getDataSource());
+			rec.setFieldValue(dataTypeCol, tscatalog.getDataType());
+			rec.setFieldValue(intervalCol, tscatalog.getDataInterval());
+			rec.setFieldValue(unitsCol, tscatalog.getDataUnits());
+			rec.setFieldValue(datastreamIdCol, tscatalog.getDatastreamId());
+			rec.setFieldValue(datastreamAliasCol, tscatalog.getDatastreamAlias());
+			rec.setFieldValue(datastreamFieldCol, tscatalog.getDatastreamField());
+			rec.setFieldValue(datastreamStatusCol, tscatalog.getDatastreamStatus());
+			rec.setFieldValue(longitudeCol, tscatalog.getStationLongitude());
+			rec.setFieldValue(latitudeCol, tscatalog.getStationLatitude());
+			rec.setFieldValue(elevationCol, tscatalog.getStationElevation());
+			rec.setFieldValue(assetIdCol, tscatalog.getAssetId());
+			rec.setFieldValue(assetNameCol, tscatalog.getAssetName());
+			rec.setFieldValue(assetDescriptionCol, tscatalog.getAssetDescription());
+			rec.setFieldValue(assetManufacturerCol, tscatalog.getAssetManufacturer());
+			rec.setFieldValue(assetModelCol, tscatalog.getAssetModel());
+			rec.setFieldValue(assetStatusCol, tscatalog.getAssetStatus());
+			rec.setFieldValue(maintenanceModeCol, tscatalog.getAssetMaintMode());
+			rec.setFieldValue(tsidCol, tscatalog.getTSID());
+			table.addRecord(rec);
+		}
+		catch ( Exception e ) {
+			// Error adding the table record.
+			++errorCount;
+			if ( errorCount <= maxErrors ) {
+				Message.printWarning ( 3, routine, "Error converting catalog " + icatalog + " to table row." );
+				Message.printWarning ( 3, routine, e );
+			}
+			if ( errorCount == maxErrors ) {
+				Message.printWarning ( 3, routine, "Limiting error output to " + maxErrors + " errors." );
+			}
+		}
+	}
+	return table;
 }
 
 /**
@@ -386,30 +586,55 @@ public boolean editCommand ( JFrame parent ) {
 }
 
 /**
+Return the table that is read by this class when run in discovery mode.
+@return the table that is read by this class when run in discovery mode
+*/
+private DataTable getDiscoveryTable() {
+    return this.__discoveryTable;
+}
+
+/**
 Return the list of time series read in discovery phase.
+@return the list of time series read in discovery phase
 */
 private List<TS> getDiscoveryTSList () {
     return __discoveryTSList;
 }
 
 /**
-Return the list of data objects read by this object in discovery mode.
-The following classes can be requested:  TS
+Return the list of data objects created by this object in discovery mode.
+The following classes can be requested:  TS, DataTable
+@return a list of discovery mode objects create by this command
 */
 @SuppressWarnings("unchecked")
 public <T> List<T> getObjectList ( Class<T> c ) {
-	List<TS> discovery_TS_List = getDiscoveryTSList ();
-    if ( (discovery_TS_List == null) || (discovery_TS_List.size() == 0) ) {
-        return null;
-    }
-    // Since all time series must be the same interval, check the class for the first one (e.g., MonthTS).
-    TS datats = discovery_TS_List.get(0);
-    // Also check the base class.
-    if ( (c == TS.class) || (c == datats.getClass()) ) {
-        return (List<T>)discovery_TS_List;
+	// Check for a table request first.
+    if ( c == DataTable.class ) {
+    	DataTable discoveryTable = getDiscoveryTable();
+    	if ( discoveryTable == null ) {
+    		return null;
+    	}
+    	else {
+    		List<DataTable> tableList = new ArrayList<>();
+    		tableList.add(discoveryTable);
+    		return (List<T>)tableList;
+    	}
     }
     else {
-        return null;
+    	// Check for a time series request.
+    	List<TS> discoveryTsList = getDiscoveryTSList ();
+       	if ( (discoveryTsList == null) || (discoveryTsList.size() == 0) ) {
+           	return null;
+       	}
+       	// Since all time series must be the same interval, check the class for the first one (e.g., MonthTS).
+       	TS datats = discoveryTsList.get(0);
+       	// Also check the base class.
+       	if ( (c == TS.class) || (c == datats.getClass()) ) {
+           	return (List<T>)discoveryTsList;
+       	}
+       	else {
+           	return null;
+       	}
     }
 }
 
@@ -470,9 +695,17 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 		status.clearLog(commandPhase);
 	}
 
+    // General (top).
+    
     boolean readData = true;
+	List<Prop> propList = null;
     if ( commandPhase == CommandPhaseType.DISCOVERY ) {
+		// Get all discovery properties, used to handle ${Property} expansion in discovery mode:
+    	// - TODO smalers 2025-11-23 currently don't allow the datastore to use a property
+    	// - see ReadNovaStar if need to do this
         setDiscoveryTSList ( null );
+		propList = TSCommandProcessorUtil.getDiscoveryPropFromCommandsBeforeCommand(
+            (TSCommandProcessor)getCommandProcessor(), this);
         readData = false;
     }
 
@@ -481,17 +714,48 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 	    DataType = TSCommandProcessorUtil.expandParameterValue(getCommandProcessor(), this, DataType);
 	}
 	String Interval = parameters.getValue("Interval");
+	
 	if ( commandPhase == CommandPhaseType.RUN ) {
 	    Interval = TSCommandProcessorUtil.expandParameterValue(getCommandProcessor(), this, Interval);
 	}
+	
+	// Single.
+
 	String StationId = parameters.getValue("StationId");
 	if ( commandPhase == CommandPhaseType.RUN ) {
 	    StationId = TSCommandProcessorUtil.expandParameterValue(getCommandProcessor(), this, StationId);
 	}
-	String TsShortName = parameters.getValue("TsShortName");
+	boolean doStationId = false;
+    if ( (StationId != null) && !StationId.isEmpty() ) {
+	    doStationId = true;
+    }
+	String TSID = parameters.getValue("TSID");
+	boolean doTSID = false;
 	if ( commandPhase == CommandPhaseType.RUN ) {
-	    TsShortName = TSCommandProcessorUtil.expandParameterValue(getCommandProcessor(), this, TsShortName);
+	    TSID = TSCommandProcessorUtil.expandParameterValue(processor, this, TSID);
 	}
+    if ( (TSID != null) && !TSID.isEmpty() ) {
+	    doTSID = true;
+    }
+
+	// Multiple.
+
+	String ReadTimeSeries = parameters.getValue ("ReadTimeSeries" );
+	boolean readTimeSeries = true;
+	if ( commandPhase == CommandPhaseType.RUN ) {
+	    ReadTimeSeries = TSCommandProcessorUtil.expandParameterValue(processor, this, ReadTimeSeries);
+	}
+    if ( (ReadTimeSeries != null) && ReadTimeSeries.equalsIgnoreCase(this._False)) {
+    	readTimeSeries = false;
+    }
+
+	String TimeSeriesCatalogTableID = parameters.getValue ("TimeSeriesCatalogTableID" );
+	if ( commandPhase == CommandPhaseType.RUN ) {
+	    TimeSeriesCatalogTableID = TSCommandProcessorUtil.expandParameterValue(processor, this, TimeSeriesCatalogTableID);
+	}
+	
+	// General (bottom).
+
 	String InputStart = parameters.getValue("InputStart");
 	if ( (InputStart == null) || InputStart.isEmpty() ) {
 		InputStart = "${InputStart}";
@@ -499,6 +763,14 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
     String InputEnd = parameters.getValue("InputEnd");
 	if ( (InputEnd == null) || InputEnd.isEmpty() ) {
 		InputEnd = "${InputEnd}";
+	}
+	String ReadData = parameters.getValue ("ReadData" );
+	if ( commandPhase == CommandPhaseType.RUN ) {
+	    ReadData = TSCommandProcessorUtil.expandParameterValue(processor, this, ReadData);
+	}
+	if ( (ReadData != null) && ReadData.equalsIgnoreCase(_False) ) {
+		// OK to use the same variable as discovery boolean.
+		readData = false;
 	}
     String IrregularInterval = parameters.getValue("IrregularInterval");
 	IrregularInterval = TSCommandProcessorUtil.expandParameterValue(getCommandProcessor(), this, IrregularInterval);
@@ -518,7 +790,15 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 	
 	String Timezone = parameters.getValue ("Timezone" );
 	if ( (Timezone == null) || Timezone.isEmpty() ) {
-		Timezone = ZoneId.systemDefault().toString();
+		Timezone = "UTC";
+	}
+	String Timeout = parameters.getValue ("Timeout" );
+	int timeoutSeconds = 5*60; // Default = 5 minutes.
+	if ( commandPhase == CommandPhaseType.RUN ) {
+	    Timeout = TSCommandProcessorUtil.expandParameterValue(processor, this, Timeout);
+	}
+	if ( (Timeout != null) && !Timeout.isEmpty() ) {
+		timeoutSeconds = Integer.valueOf(timeoutSeconds);
 	}
 	String Debug = parameters.getValue ("Debug" );
 	boolean debug = false; // Default
@@ -583,18 +863,14 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 		throw new InvalidCommandParameterException ( message );
 	}
 
-	// Set up properties for the read:
-	// - OK if null values
-
-	//PropList readProps = new PropList ( "ReadProps" );
-
 	// Now try to read.
 
-	List<TS> tslist = new ArrayList<>();	// List for time series results.
-					// Will be added to for one time series read or replaced if a list is read.
+	// List for time series results:
+	// - will be added to for one time series read or replaced if a list is read
+	List<TS> tslist = new ArrayList<>();
+
 	try {
         String Alias = parameters.getValue ( "Alias" );
-        //String TSID = parameters.getValue ( "TSID" );
         String DataStore = parameters.getValue ( "DataStore" );
         CampbellCloudDataStore dataStore = null;
 		if ( (DataStore != null) && !DataStore.equals("") ) {
@@ -606,7 +882,12 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 	        }
 	    }
 		if ( dataStore == null ) {
-            message = "Cannot get CampbellCloud DataStore for \"" + DataStore + "\".";
+			if ( commandPhase == CommandPhaseType.DISCOVERY ) {
+				message = "Cannot get CampbellCloudDataStore for \"" + DataStore + "\" in discovery mode.";
+			}
+			else {
+				message = "Cannot get CampbellCloudDataStore for \"" + DataStore + "\".";
+			}
             Message.printWarning ( 2, routine, message );
             status.addToLog ( commandPhase,
                 new CommandLogRecord(CommandStatusType.FAILURE,
@@ -617,256 +898,392 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 			// Have a datastore so try to read.
         	// See if a Where has been specified by checking for the first Where clause.
 			String WhereN = parameters.getValue ( "Where" + 1 );
-			//if ( (WhereN == null) || WhereN.isEmpty() ) { // }
-			if ( (StationId != null) && !StationId.isEmpty() ) {
+			if ( doTSID || doStationId ) {
 				// Have single location ID so try to read the matching time series.
-				TSIdent tsident = new TSIdent();
-				if ( StationId != null ) {
-					tsident.setLocation(StationId);
-				}
-				tsident.setSource("CampbellCloud");
-				String dataType = "";
-				if ( (DataType != null) && !DataType.isEmpty() && !DataType.equals("*") ) {
-					if ( (DataType.indexOf("-") > 0) || (DataType.indexOf(".") > 0) ) {
-						dataType += "'" + DataType + "'";
+				// Try to read the matching single time series:
+				// - for StationId, 'TSIDForRequest' is formed from parts
+				// - for TSID, 'TSIDForRequest' is the 'TSID'
+				String TSIDForRequest = null;
+				if ( doStationId ) {
+					TSIdent tsident = new TSIdent();
+					if ( StationId != null ) {
+						tsident.setLocation(StationId);
 					}
-					else {
-						dataType += DataType;
+					tsident.setSource("CampbellCloud");
+					if ( (DataType != null) && !DataType.isEmpty() && !DataType.equals("*") ) {
+						if ( (DataType.indexOf("-") > 0) || (DataType.indexOf(".") > 0) ) {
+							// Escape the data type.
+							tsident.setType("'" + DataType + "'");
+						}
+						else {
+							tsident.setType(DataType);
+						}
 					}
-				}
-				dataType += "-";
-				if ( (TsShortName != null) && !TsShortName.isEmpty() && !TsShortName.equals("*") ) {
-					if ( (TsShortName.indexOf("-") > 0) || (TsShortName.indexOf(".") > 0) ) {
-						dataType += "'" + TsShortName + "'";
+					if ( (Interval != null) && !Interval.isEmpty() && !Interval.equals("*") ) {
+						tsident.setInterval(Interval);
 					}
-					else {
-						dataType += TsShortName;
-					}
+					TSIDForRequest = tsident.getIdentifier();
 				}
-				tsident.setType(dataType);
-				if ( (Interval != null) && !Interval.isEmpty() && !Interval.equals("*") ) {
-					tsident.setInterval(Interval);
+				else if ( doTSID ) {
+					TSIDForRequest = TSID;
 				}
-				String TSID = tsident.getIdentifier();
-				// Currently can only read up to 1Day interval:
-				// - TODO smalers 2023-01-16 enable once know how to handle
-				if ( (tsident.getIntervalBase() == TimeInterval.MONTH) || (tsident.getIntervalBase() == TimeInterval.YEAR) ) {
-					message = "Don't know how to read month or year interval for \"" + TSID + "\".";
-					Message.printWarning ( 2, routine, message );
-	                status.addToLog ( commandPhase,
-	                    new CommandLogRecord(CommandStatusType.FAILURE,
-	                        message, "Software needs to be enhanced." ) );
-				}
-				else {
 				// Version that reads a single time series using the TSID.
-				Message.printStatus ( 2, routine, "Reading a single Campbell Cloud web service time series \"" + TSID + "\"" );
-				TS ts = null;
+		    	TS ts = null;
 				try {
-					HashMap<String,Object> readProperties = createReadProperties (
-						debug,
-						IrregularInterval,
-						//read24HourAsDay,
-						//readDayAs24Hour,
-						Timezone );
-	                ts = dataStore.readTimeSeries ( TSID, InputStart_DateTime, InputEnd_DateTime, readData, readProperties );
+					if ( (commandPhase == CommandPhaseType.DISCOVERY) && TSIDForRequest.contains("${") ) { // }
+						// Discovery mode has property in the TSID:
+						// - don't try to read the time series
+						Message.printStatus ( 2, routine, "Setting NovaStar web service discovery time series \"" + TSIDForRequest + "\"" );
+						ts = new TS();
+						ts.setIdentifier(TSIDForRequest);
+						Message.printStatus ( 2, routine, "Back from setting NovaStar web service discovery time series \"" + TSIDForRequest + "\"" );
+					}
+					else {
+						// Create the list of properties that control the read:
+						// - use the TSProgressListener so that progress reading shows up as the command progress
+						TSProgressListener tsProgressListener = this;
+						HashMap<String,Object> readProperties = createReadProperties (
+							debug,
+							IrregularInterval,
+							//read24HourAsDay,
+							//readDayAs24Hour,
+							timeoutSeconds,
+							Timezone,
+							// Want to chain progress in the single time series to TSTool.
+							tsProgressListener );
+						// Try to read the time series:
+						// - if in discover mode, 'readData' will be false
+						Message.printStatus ( 2, routine, "Reading Campbell Cloud web service time series \"" + TSIDForRequest + "\"" );
+						// Set the notification at 25% to show some progress.
+						notifyCommandProgressListeners ( 0, 100, (float)(25.0), "Requesting data." );
+               			ts = dataStore.readTimeSeries ( TSIDForRequest, InputStart_DateTime, InputEnd_DateTime, readData, readProperties );
+						// Set the notification at 100% to show completion.
+						notifyCommandProgressListeners ( 0, 100, (float)(100.0), "Completed requesting data." );
+					}
 				}
 				catch ( Exception e ) {
 				    ts = null;
-					message = "Unexpected error reading Campbell Cloud time series \"" + TSID + "\" (" + e + ").";
+					message = "Unexpected error reading Campbell Cloud web services time series \"" + TSIDForRequest + "\" (" + e + ").";
 					Message.printWarning ( 2, routine, message );
 					Message.printWarning ( 2, routine, e );
-	                status.addToLog ( commandPhase,
-	                    new CommandLogRecord(CommandStatusType.FAILURE,
-	                        message, "Verify the time series identifier." ) );
-	                throw new RuntimeException ( message );
+					if ( commandPhase == CommandPhaseType.DISCOVERY ) {
+						status.addToLog ( commandPhase,
+							new CommandLogRecord(CommandStatusType.WARNING,
+								message, "Verify the time series identifier - may need to fix the database configuration." ) );
+					}
+					else {
+						status.addToLog ( commandPhase,
+							new CommandLogRecord(CommandStatusType.FAILURE,
+								message, "Verify the time series identifier - may need to fix the database configuration." ) );
+						// Throw an exception because could not read the single time series.
+						//throw new RuntimeException ( message );
+					}
 				}
 				finally {
-				    if ( ts == null ) {
-				        // Generate an event for listeners.
-				        notifyCommandProcessorEventListeners(new MissingObjectEvent(TSID,Class.forName("RTi.TS.TS"),"Time Series", this));
-				    }
+			    	if ( ts == null ) {
+			       		// Generate an event for listeners.
+			       		notifyCommandProcessorEventListeners(
+					        new MissingObjectEvent(TSIDForRequest,Class.forName("RTi.TS.TS"),"Time Series", this));
+			    	}
 				}
 				if ( ts != null ) {
-					// Set the alias.
+					// Set the alias:
+					// - OK to use properties
 				    if ( Alias != null ) {
-				        ts.setAlias ( TSCommandProcessorUtil.expandTimeSeriesMetadataString(
-			                    processor, ts, Alias, status, commandPhase) );
+				    	//if ( (commandPhase == CommandPhaseType.DISCOVERY) && (Alias.contains("${") || Alias.contains("%")) ) { // } }
+				    	if ( (commandPhase == CommandPhaseType.DISCOVERY) ) {
+				    		// Set the alias to the command parameter:
+				    		// - the time series will have been created above
+				    		// - do not expand the alias
+				    		ts.setAlias(Alias);
+				    	}
+				    	else {
+				    		// Set the alias based on run-time data.
+				    		ts.setAlias ( TSCommandProcessorUtil.expandTimeSeriesMetadataString( processor, ts, Alias, status, commandPhase) );
+				    	}
 				    }
 					tslist.add ( ts );
-				}
 				}
 	        }
 			else {
 	            // Read 1+ time series using the input filters.
 				// Get the input needed to process the file.
 				Message.printStatus(2, routine, "Reading multiple Campbell Cloud time series using input filter.");
-				String InputName = parameters.getValue ( "InputName" );
-				if ( InputName == null ) {
-					InputName = "";
+
+				if ( (commandPhase == CommandPhaseType.DISCOVERY) &&
+					(((DataType != null) && DataType.contains("${")) || // }
+					((Interval != null) && Interval.contains("${"))) ) { // }
+					// Can't read the discovery time series because of properties.
 				}
-				List<String> whereNList = new ArrayList<>();
-				int nfg = 0; // Used below.
-				// User may have skipped a where and left a blank so loop over a sufficiently large number of where parameters
-				// to get the non-blank filters.
-				for ( int ifg = 0; ifg < 25; ifg++ ) {
-					WhereN = parameters.getValue ( "Where" + (ifg + 1) );
-					if ( WhereN != null ) {
-						++nfg;
-						whereNList.add ( WhereN );
+				else {
+					// No property so can attempt to read the time series, even in discovery mode.
+					String InputName = parameters.getValue ( "InputName" );
+					if ( InputName == null ) {
+						InputName = "";
 					}
-				}
-
-				// Initialize an input filter based on the data type.
-
-				InputFilter_JPanel filterPanel = null;
-
-				// Create the input filter panel.
-				String dataTypeReq = "";
-			    if ( dataTypeReq.indexOf("-") > 0 ) {
-			        dataTypeReq = StringUtil.getToken(DataType,"-",0,1).trim();
-			    }
-			    else {
-			        dataTypeReq = DataType.trim();
-			    }
-
-				filterPanel = new CampbellCloud_TimeSeries_InputFilter_JPanel ( dataStore, 5 );
-
-				// Populate with the where information from the command:
-				// - the first part of the where should match the "whereLabelPersistent" used when constructing the input filter
-				// - the Campbell Cloud internal field is used to help users correlate the TSTool filter to Campbell Cloud web services
-
-				String filter_delim = ";";
-				for ( int ifg = 0; ifg < nfg; ifg ++ ) {
-					WhereN = whereNList.get(ifg);
-	                if ( WhereN.length() == 0 ) {
-	                    continue;
-	                }
-					// Set the filter.
-					try {
-	                    filterPanel.setInputFilter( ifg, WhereN, filter_delim );
+					List<String> whereNList = new ArrayList<>();
+					int nfg = 0; // Used below.
+					// User may have skipped a where and left a blank so loop over a sufficiently large number of where parameters
+					// to get the non-blank filters.
+					for ( int ifg = 0; ifg < 25; ifg++ ) {
+						WhereN = parameters.getValue ( "Where" + (ifg + 1) );
+						if ( WhereN != null ) {
+							++nfg;
+							whereNList.add ( WhereN );
+						}
 					}
-					catch ( Exception e ) {
-	                    message = "Error setting where information using \"" + WhereN + "\"";
+
+					boolean haveError = false;
+					// Do a runtime check to prohibit DataType=* without input filters because it will hammer the system:
+					// - OK if ReadTimeSeries=False
+					/* TODO smalers 2025-11-23 evaluate whether to enable.
+					if ( (nfg == 0) && DataType.equals("*") && readTimeSeries ) {
+	                	message = "DataType=*, no Where filters, and ReadTimeSeries=True are specified - not allowed because may query many time series.";
 						Message.printWarning ( 2, routine,message);
-						Message.printWarning ( 3, routine, e );
 						++warning_count;
-	                    status.addToLog ( commandPhase,
-	                        new CommandLogRecord(CommandStatusType.FAILURE,
-	                            message, "Report the problem to software support - also see the log file." ) );
+	                	status.addToLog ( commandPhase,
+	                    	new CommandLogRecord(CommandStatusType.FAILURE,
+	                        	message, "Specify a data type, one or more Where filters, and/or ReadTimeSeries=False." ) );
+	                	haveError = true;
 					}
-				}
+					*/
 
-				// Read the list of objects from which identifiers can be obtained.
+					if ( !haveError ) {
+						// Initialize an input filter based on the data type.
 
-				Message.printStatus ( 2, routine, "Getting the list of time series..." );
+						InputFilter_JPanel filterPanel = null;
 
-				// Create empty lists for catalogs from each major data category.
-				List<TimeSeriesCatalog> tsCatalogList = new ArrayList<>();
+						// Create the input filter panel.
+						String dataTypeReq = "";
+			    		if ( dataTypeReq.indexOf("-") > 0 ) {
+			        		dataTypeReq = StringUtil.getToken(DataType,"-",0,1).trim();
+			    		}
+			    		else {
+			        	dataTypeReq = DataType.trim();
+			    		}
 
-				// Read the catalog.
-				int size = 0;
-				try {
-					tsCatalogList = dataStore.readTimeSeriesCatalog ( dataTypeReq, Interval, filterPanel );
-					size = tsCatalogList.size();
-				}
-				catch ( Exception e ) {
-					// Probably no data.
-				}
+						filterPanel = new CampbellCloud_TimeSeries_InputFilter_JPanel ( dataStore, 5 );
 
-				// Make sure that size is set.
-	       		if ( size == 0 ) {
-					Message.printStatus ( 2, routine,"No Campbell Cloud web service time series were found." );
-			        // Warn if nothing was retrieved (can be overridden to ignore).
-		            message = "No time series were read from the Campbell Cloud web service.";
-		            Message.printWarning ( warning_level,
-		                MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
-	                status.addToLog ( commandPhase,
-	                    new CommandLogRecord(CommandStatusType.FAILURE,
-	                        message, "Data may not be in database." +
-	                        	"  Previous messages may provide more information." ) );
-		            // Generate an event for listeners.
-		            // FIXME SAM 2008-08-20 Need to put together a more readable id for reporting.
-	                notifyCommandProcessorEventListeners(
-	                    new MissingObjectEvent(DataType + ", " + Interval + ", see command for user-specified criteria",
-	                        Class.forName("RTi.TS.TS"),"Time Series", this));
-					return;
-	       		}
+						// Populate with the where information from the command:
+						// - the first part of the where should match the "whereLabelPersistent" used when constructing the input filter
+						// - the Campbell Cloud internal field is used to help users correlate the TSTool filter to Campbell Cloud web services
 
-				// Else, convert each header object to a TSID string and read the time series.
-
-				Message.printStatus ( 2, "", "Reading " + size + " time series..." );
-
-				String tsidentString = null; // TSIdent string.
-				TS ts; // Time series to read.
-				TimeSeriesCatalog tsCatalog;
-				HashMap<String,Object> readProperties = createReadProperties (
-					debug,
-					IrregularInterval,
-					//read24HourAsDay,
-					//readDayAs24Hour,
-					Timezone );
-				for ( int i = 0; i < size; i++ ) {
-					// Check to see if reading time series should be canceled because the command has been canceled.
-					if ( tsprocessor.getCancelProcessingRequested() ) {
-						// The user has requested that command processing should be canceled.
-						// Check here in this command because a very large query could take a long time before a single command finishes.
-						Message.printStatus(2, routine, "Cancel processing based on user request.");
-						break;
-					}
-					// List in order of likelihood to improve performance.
-					tsidentString = null; // Do this in case there is no active match.
-					tsCatalog = (TimeSeriesCatalog)tsCatalogList.get(i);
-					String stationId = tsCatalog.getStationId();
-					String dataSource = tsCatalog.getDataSource();
-					String dataType = "";
-					// Data type is from the catalog (not the original data type).
-					String dataTypeFromCatalog = tsCatalog.getDataType();
-					if ( (dataTypeFromCatalog != null) && !dataTypeFromCatalog.isEmpty() && !dataTypeFromCatalog.equals("*") ) {
-						if ( dataTypeFromCatalog.indexOf(".") > 0 ) {
-							dataType += "'" + dataTypeFromCatalog + "'";
+						String filter_delim = ";";
+						for ( int ifg = 0; ifg < nfg; ifg ++ ) {
+							WhereN = whereNList.get(ifg);
+	                		if ( WhereN.length() == 0 ) {
+	                    		continue;
+	                		}
+							// Set the filter.
+							try {
+	                    		filterPanel.setInputFilter( ifg, WhereN, filter_delim );
+							}
+							catch ( Exception e ) {
+	                    		message = "Error setting where information using \"" + WhereN + "\"";
+								Message.printWarning ( 2, routine,message);
+								Message.printWarning ( 3, routine, e );
+								++warning_count;
+	                    		status.addToLog ( commandPhase,
+	                        		new CommandLogRecord(CommandStatusType.FAILURE,
+	                            		message, "Report the problem to software support - also see the log file." ) );
+							}
 						}
+	
+						// Read the list of objects from which identifiers can be obtained.
+
+						Message.printStatus ( 2, routine, "Getting the list of time series..." );
+
+						// Create empty lists for catalogs from each major data category.
+						List<TimeSeriesCatalog> tsCatalogList = new ArrayList<>();
+
+						// Read the catalog.
+						int size = 0;
+						try {
+							tsCatalogList = dataStore.readTimeSeriesCatalog ( dataTypeReq, Interval, filterPanel );
+							size = tsCatalogList.size();
+						}
+						catch ( Exception e ) {
+							// Probably no data.
+						}
+	
+						// Make sure that size is set.
+	       				if ( size == 0 ) {
+							Message.printStatus ( 2, routine,"No Campbell Cloud web service time series were found." );
+			        		// Warn if nothing was retrieved (can be overridden to ignore).
+							if ( commandPhase == CommandPhaseType.DISCOVERY ) {
+								if ( readTimeSeries ) {
+									message = "No time series were read from NovaStar web service - may be OK if ${Property} are expanded at run time.";
+									Message.printWarning ( warning_level,
+										MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
+									status.addToLog ( commandPhase,
+										new CommandLogRecord(CommandStatusType.WARNING,
+										message, "Data may not be in the database - may be OK if interval time series are created when the command is run." +
+										"  Previous messages may provide more information." ) );
+								}
+							}
+							else {
+								if ( readTimeSeries ) {
+									message = "No time series were read from NovaStar web service.";
+									Message.printWarning ( warning_level,
+									MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
+									status.addToLog ( commandPhase,
+										new CommandLogRecord(CommandStatusType.FAILURE,
+											message, "Data may not be in database.  Previous messages may provide more information." ) );
+								}
+							}
+		            		// Generate an event for listeners.
+		            		// FIXME SAM 2008-08-20 Need to put together a more readable id for reporting.
+	                		notifyCommandProcessorEventListeners(
+	                    		new MissingObjectEvent(DataType + ", " + Interval + ", see command for user-specified criteria",
+	                        		Class.forName("RTi.TS.TS"),"Time Series", this));
+							return;
+	       				}
 						else {
-							dataType += dataTypeFromCatalog;
+							Message.printStatus ( 2, "", "Read " + size + " time series catalog for data type '" + dataTypeReq +
+								"' and interval '" + Interval + "' for time series request." );
 						}
-					}
-					String interval = tsCatalog.getDataInterval();
-					if ( (interval == null) || interval.equals("*") ) {
-						// Don't set the interval so called code can determine.
-						interval = "";
-					}
-					tsidentString =
-						stationId
-						+ "." + dataSource 
-						+ "." + dataType
-						+ "." + interval;
-		            // Update the progress.
-					message = "Reading Campbell Cloud web service time series " + (i + 1) + " of " + size + " \"" + tsidentString + "\"";
-	                notifyCommandProgressListeners ( i, size, (float)-1.0, message );
-					try {
-					    ts = dataStore.readTimeSeries (
-							tsidentString,
-							InputStart_DateTime,
-							InputEnd_DateTime, readData, readProperties );
-						// Add the time series to the temporary list.  It will be further processed below.
-		                if ( (ts != null) && (Alias != null) && !Alias.equals("") ) {
-		                    ts.setAlias ( TSCommandProcessorUtil.expandTimeSeriesMetadataString(
-		                        processor, ts, Alias, status, commandPhase) );
-		                }
-		                // Allow null to be added here.
-						tslist.add ( ts );
-					}
-					catch ( Exception e ) {
-						message = "Unexpected error reading Campbell Cloud web service time series \"" + tsidentString + "\" (" + e + ").";
-						Message.printWarning ( 2, routine, message );
-						Message.printWarning ( 2, routine, e );
-						++warning_count;
-	                    status.addToLog ( commandPhase,
-	                        new CommandLogRecord(CommandStatusType.FAILURE,
-	                           message, "Report the problem to software support - also see the log file." ) );
-					}
-				}
-			}
-		}
+
+						// Else, convert each header object to a TSID string and read the time series.
+
+						if ( readTimeSeries ) {
+							Message.printStatus ( 2, "", "Reading " + size + " time series..." );
+		
+							String tsidentString = null; // TSIdent string.
+							TS ts; // Time series to read.
+							TimeSeriesCatalog tsCatalog;
+							// For multiple time series, progress for the command counts the time series being read
+							// (not the values within a time series) so don't show read progress for each time series.
+							TSProgressListener tsProgressListener = null;
+							HashMap<String,Object> readProperties = createReadProperties (
+								debug,
+								IrregularInterval,
+								//read24HourAsDay,
+								//readDayAs24Hour,
+								timeoutSeconds,
+								Timezone,
+								tsProgressListener );
+							for ( int i = 0; i < size; i++ ) {
+								// Check to see if reading time series should be canceled because the command has been canceled.
+								if ( tsprocessor.getCancelProcessingRequested() ) {
+									// The user has requested that command processing should be canceled.
+									// Check here in this command because a very large query could take a long time before a single command finishes.
+									Message.printStatus(2, routine, "Cancel processing based on user request.");
+									break;
+								}
+								// List in order of likelihood to improve performance.
+								tsidentString = null; // Do this in case there is no active match.
+								tsCatalog = (TimeSeriesCatalog)tsCatalogList.get(i);
+								String stationId = tsCatalog.getStationId();
+								String dataSource = tsCatalog.getDataSource();
+								String dataType = "";
+								// Data type is from the catalog (not the original data type).
+								String dataTypeFromCatalog = tsCatalog.getDataType();
+								if ( (dataTypeFromCatalog != null) && !dataTypeFromCatalog.isEmpty() && !dataTypeFromCatalog.equals("*") ) {
+									if ( dataTypeFromCatalog.indexOf(".") > 0 ) {
+										dataType += "'" + dataTypeFromCatalog + "'";
+									}
+									else {
+										dataType += dataTypeFromCatalog;
+									}
+								}
+								String interval = tsCatalog.getDataInterval();
+								if ( (interval == null) || interval.equals("*") ) {
+									// Don't set the interval so called code can determine.
+									interval = "";
+								}
+								tsidentString =
+									stationId
+									+ "." + dataSource 
+									+ "." + dataType
+									+ "." + interval;
+		            			// Update the progress.
+								message = "Reading Campbell Cloud web service time series " + (i + 1) + " of " + size + " \"" + tsidentString + "\"";
+	                			notifyCommandProgressListeners ( i, size, (float)-1.0, message );
+								if ( tsidIsValid(tsidentString) ) {
+									// TSID is valid:
+									// - read the time series
+									try {
+										ts = dataStore.readTimeSeries (
+											tsidentString,
+											InputStart_DateTime,
+											InputEnd_DateTime,
+											readData,
+											readProperties );
+										// Add the time series to the temporary list.  It will be further processed below.
+										if ( (ts != null) && (Alias != null) && !Alias.isEmpty() ) {
+											ts.setAlias ( TSCommandProcessorUtil.expandTimeSeriesMetadataString(
+												processor, ts, Alias, status, commandPhase) );
+										}
+										// Allow null to be added here.
+										tslist.add ( ts );
+									}
+									catch ( Exception e ) {
+										message = "Unexpected error reading Campbell Cloud web service time series \"" + tsidentString + "\" (" + e + ").";
+										Message.printWarning ( 2, routine, message );
+										if ( commandPhase == CommandPhaseType.DISCOVERY ) {
+											status.addToLog ( commandPhase,
+												new CommandLogRecord(CommandStatusType.WARNING,
+												message, "Verify the time series identifier - may need to fix the database configuration." ) );
+										}
+										else {
+											Message.printWarning ( 2, routine, e );
+											++warning_count;
+											status.addToLog ( commandPhase,
+												new CommandLogRecord(CommandStatusType.FAILURE,
+													message, "Report the problem to software support - also see the log file." ) );
+										}
+									} // Error reading time series.
+								} // TSID is valid.
+								else {
+									// TSID is invalid:
+									// - do not read the time series
+									message = "Time series identifier \"" + tsidentString + "\" is invalid - not trying to read.";
+									Message.printWarning ( 2, routine, message );
+									if ( commandPhase == CommandPhaseType.DISCOVERY ) {
+										status.addToLog ( commandPhase,
+											new CommandLogRecord(CommandStatusType.WARNING,
+											message, "Verify the time series identifier - may need to fix the database configuration." ) );
+									}
+								} // TSID is invalid.
+							} // Read a time series.
+						} // ReadTimeSeries=true
+
+						if ( (TimeSeriesCatalogTableID != null) && !TimeSeriesCatalogTableID.isEmpty() ) {
+							if ( commandPhase == CommandPhaseType.DISCOVERY ) {
+								// Create an empty table and set the ID.
+								DataTable table = new DataTable();
+								table.setTableID ( TimeSeriesCatalogTableID );
+								setDiscoveryTable ( table );
+							}
+							else {
+								// In run mode:
+								// - create a table from the catalog and set in the processor
+								DataTable table = createTimeSeriesCatalogTable ( dataStore, tsCatalogList, TimeSeriesCatalogTableID );
+								Message.printStatus ( 2, routine, "Time series catalog table has " + table.getNumberOfRecords() + " rows." );
+
+								// Set the table in the processor.
+
+								PropList request_params = new PropList ( "" );
+								request_params.setUsingObject ( "Table", table );
+								try {
+									processor.processRequest( "SetTable", request_params);
+								}
+								catch ( Exception e ) {
+									message = "Error processing request SetTable(Table=...) in the processor.";
+									Message.printWarning(warning_level,
+										MessageUtil.formatMessageTag( command_tag, ++warning_count),
+										routine, message );
+									status.addToLog ( commandPhase,
+										new CommandLogRecord(CommandStatusType.FAILURE,
+											message, "Report problem to software support." ) );
+								}
+							}
+						} // End saving table.
+
+					} // End haveError.
+				} // End reading time series without ${Property}.
+			} // End reading multiple time series
+		} // Have non-null datastore
 
         int size = 0;
         if ( tslist != null ) {
@@ -905,21 +1322,37 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
                     throw new CommandException ( message );
                 }
             }
+
+            // Warn if nothing was retrieved (can be overridden to ignore):
+            // - only show for runtime since discovery may be impacted by ${Property} and other complications
+            if ( (tslist == null) || (size == 0) ) {
+            	if ( commandPhase == CommandPhaseType.DISCOVERY ) {
+					if ( readTimeSeries ) {
+						message = "No time series were read from NovaStar web service - may be OK if ${Property} are expanded at run time.";
+						Message.printWarning ( warning_level,
+							MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
+                    	status.addToLog ( commandPhase,
+                    		new CommandLogRecord(CommandStatusType.WARNING,
+                            message, "Data may not be in the database.  See previous messages." ) );
+					}
+            	}
+            	else {
+					if ( readTimeSeries ) {
+						message = "No time series were read from NovaStar web service.";
+						Message.printWarning ( warning_level,
+							MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
+                    	status.addToLog ( commandPhase,
+                    		new CommandLogRecord(CommandStatusType.WARNING,
+                            message, "Data may not be in the database.  See previous messages." ) );
+					}
+            	}
+                // Generate an event for listeners.
+                // TOD SAM 2008-08-20 Evaluate whether need here.
+                //notifyCommandProcessorEventListeners(new MissingObjectEvent(DataType + ", " + Interval + filter_panel,this));
+            }
         }
         else if ( commandPhase == CommandPhaseType.DISCOVERY ) {
             setDiscoveryTSList ( tslist );
-        }
-        // Warn if nothing was retrieved (can be overridden to ignore).
-        if ( (tslist == null) || (size == 0) ) {
-            message = "No time series were read from the Campbell Cloud web service.";
-            Message.printWarning ( warning_level,
-                MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
-                status.addToLog ( commandPhase,
-                    new CommandLogRecord(CommandStatusType.FAILURE,
-                        message, "Data may not be in database.  See previous messages." ) );
-            // Generate an event for listeners.
-            // TOD SAM 2008-08-20 Evaluate whether need here.
-            //notifyCommandProcessorEventListeners(new MissingObjectEvent(DataType + ", " + Interval + filter_panel,this));
         }
 	}
 	catch ( Exception e ) {
@@ -948,10 +1381,37 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 }
 
 /**
+Set the table that is read by this class in discovery mode.
+@param table discovery table with TableID set
+*/
+private void setDiscoveryTable ( DataTable table ) {
+    this.__discoveryTable = table;
+}
+
+/**
 Set the list of time series read in discovery phase.
+@param discoveryTSList the list of time series created in discovery mode
 */
 private void setDiscoveryTSList ( List<TS> discoveryTSList ) {
-    __discoveryTSList = discoveryTSList;
+    this.__discoveryTSList = discoveryTSList;
+}
+
+/**
+ * Listen for progress processing a time series and pass the notification to CommandProgressListener method
+ * for this command (implemented in AbstractCommand).
+ * This is used when single time series are read.
+ * No filtering of the messages occurs - if only reporting incremental progress, that logic is in the calling code.
+ * The 'commandProgress' method that is called needs to handle other progress parts,
+ * such as if a certain amount of the runtime is devoted to the request before results are received.
+ * @param istep The number of data reports being processed.
+ * Use 0 to initialize the progress and > 0 thereafter.
+ * @param nstep The total number of data reports that will be processed.
+ * @param percentComplete If >= 0, will be used instead of 'istep' to indicate the progress.
+ * @param message A short message describing the status (e.g., "Processing value 1 of 1000..." ).
+ */
+public void timeSeriesProgress ( int istep, int nstep, float percentComplete, String message ) {
+	// Call the similar method on this command class.
+	notifyCommandProgressListeners ( istep, nstep, percentComplete, message );
 }
 
 /**
@@ -961,11 +1421,13 @@ Return the string representation of the command.
 */
 public String toString ( PropList parameters ) {
 	String [] parameterOrder1 = {
+		// General (top).
     	"DataStore",
     	"DataType",
     	"Interval",
     	// Match 1.
-    	"StationId"
+    	"StationId",
+    	"TSID"
 	};
   	// Match 1+.
 	String delim = ";";
@@ -977,13 +1439,19 @@ public String toString ( PropList parameters ) {
     	}
     }
 	String [] parameterOrder2 = {
+		// Match 1+.
+    	"ReadTimeSeries",
+    	"TimeSeriesCatalogTableID",
+		// General (bottom).
 		"Alias",
 		"InputStart",
 		"InputEnd",
+		"ReadData",
 		"IrregularInterval",
 		//"Read24HourAsDay",
 		//"ReadDayAs24Hour",
     	"Timezone",
+    	"Timeout",
 		"Debug",
 	};
 
@@ -1001,5 +1469,17 @@ public String toString ( PropList parameters ) {
 	}
 	return this.toString(parameters, parameterOrder);
 }
+
+	/**
+	 * Check whether the time series identifier is valid.
+	 * This is mainly used to check for "NOPOINTTAG" and other parts that will cause an exception when reading.
+	 * Avoiding reading bad identifiers will improve performance and avoid confusing errors.
+	 */
+	 private boolean tsidIsValid ( String tsidentString ) {
+		 if ( (tsidentString == null) || tsidentString.isEmpty() ) {
+			 return false;
+		 }
+		 return true;
+	 }
 
 }

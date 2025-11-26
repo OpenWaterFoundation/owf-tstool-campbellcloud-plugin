@@ -9,7 +9,7 @@ Comment08: For this plugin dependencies are Campbell Cloud Maven jar files.
 manifest-Version: 1.0
 Plugin-Name: owf-tstool-campbellcloud-plugin
 Plugin-Version: 1.0.1
-TSTool-Version: >= 15.2.0
+TSTool-Version: >= 15.0.0
 DataStore-Class: org.openwaterfoundation.tstool.plugin.campbellcloud.
  datastore.CampbellCloudDataStore
 DataStoreFactory-Class: org.openwaterfoundation.tstool.plugin.campbellcloud.

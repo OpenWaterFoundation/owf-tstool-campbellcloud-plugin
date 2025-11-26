@@ -410,7 +410,7 @@ public class TimeSeriesCatalog {
 		return this.stationName;
 	}
 
-	public String getTsId ( ) {
+	public String getTSID ( ) {
 		return this.tsId;
 	}
 
@@ -508,7 +508,7 @@ public class TimeSeriesCatalog {
 		this.stationName = stationName;
 	}
 	
-	public void setTsId ( String tsId ) {
+	public void setTSID ( String tsId ) {
 		this.tsId = tsId;
 	}
 

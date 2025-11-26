@@ -16,7 +16,8 @@ A TSID command is created by copying a time series from the ***Time Series List*
 to the ***Commands*** area.
 TSID commands can also be created by editing the command file with a text editor.
 
-See the [Campbell Cloud Datastore Appendix](../../datastore-ref/CampbellCloud/CampbellCloud.md) for information about TSID syntax.
+See the [Campbell Cloud Datastore Appendix](../../datastore-ref/CampbellCloud/CampbellCloud.md) for information about TSID syntax
+and defaults.
 
 See also the [`ReadCampbellCloud`](../ReadCampbellCloud/ReadCampbellCloud.md) command,
 which reads one or more time series and provides parameters for control over how data are read.
@@ -26,17 +27,8 @@ If the input period is not specified with the
 the default is to read the last 30 days.
 If a period is specified but the time zone is not specified, the time zone for the computer is used.
 
-The TSTool Campbell Cloud plugin automatically manipulates time series timestamps to be consistent
-with TSTool, as follows:
+Use the TSTool time series list to see the time series identifier corresponding to each time series.
 
-*   Irregular interval time series:
-    +   use timestamps from Campbell Cloud web services without changing
-*   Regular interval time series:
-    +   currently all Campbell Cloud time series are treated as irregular given that the
-        focus is on real-time data and Campbell Cloud timestamps do not seem to 
-        require alignment on time boundaries
-    +   this approach may change in the future
-        
 ## Command Editor ##
 
 All TSID commands are edited using the general

@@ -1,0 +1,14 @@
+# Campbell Cloud (CC) data download.
+#
+# Query period: ${InputStart} to ${InputEnd}
+#
+# @CreationTime ${CurrentTime}
+# @Source 10
+# @Timezone UTC
+#
+# SourceLocId = CC station ID
+# SourceDataType = CC datastream field
+# NSLocId = NovaStar stationNumId
+# NSDataType = NovaStar point type SHEF parameter code
+#
+SourceLocId,SourceDataType,NSLocId,NSDataType,ReportTime,NSScaledValue

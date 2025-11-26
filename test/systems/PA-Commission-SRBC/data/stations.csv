@@ -1,0 +1,8 @@
+# This is the list of Campbell Cloud stations for PA-Commission-SRBC:
+# - in the production system, the list would be read from either the 'stations' service or 'tscatalog' unique station ID
+"StationId","StationName","AssetDescription"
+7130b1c3-8ed9-480c-9714-935ccfbe9ae1,Jerseytown Community Center,RainVUE station
+724c822c-ce9e-4340-b675-7851d77873b6,Fairview Mountain Church,RainVUE station
+ecb4a4fd-f194-49c4-ad87-30c1e9ad86cd,"Van Dine (Katy's) Church",RainVUE station
+ac5f5f38-fac5-4fce-becf-f410f0836ccc,Montour County EOC Weather,ClimaVUE station
+9faed039-0226-4b98-b425-d04ebc637696,W Br Chillisquaque at PA-44,RangeVUE station

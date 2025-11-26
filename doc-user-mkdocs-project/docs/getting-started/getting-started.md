@@ -5,9 +5,9 @@ This chapter provides an overview of getting started with TSTool and the Campbel
 *   [Introduction](#introduction)
 *   [Installing and Configuring TSTool](#installing-and-configuring-tstool)
 *   [Starting TSTool](#starting-tstool)
-*   [Installing the Campbell Cloud Plugin](#installing-the-campbellcloud-plugin)
-*   [Listing Campbell Cloud Time Series](#listing-campbellcloud-time-series)
-*   [Using the Campbell Cloud Plugin Commands](#using-the-campbellcloud-plugin-commands)
+*   [Installing the Campbell Cloud Plugin](#installing-the-campbell-cloud-plugin)
+*   [Listing Campbell Cloud Time Series](#listing-campbell-cloud-time-series)
+*   [Using the Campbell Cloud Plugin Commands](#using-the-campbell-cloud-plugin-commands)
 
 ----------------
 
@@ -80,7 +80,7 @@ The time series can then be copied to the ***Commands*** area as
 </p>**
 
 **<p style="text-align: center;">
-Campbell Cloud Time Series List (<a href="../time-series-list.png">see also the full-size image)</a>
+Campbell Cloud Time Series List (<a href="../time-series-list.png">see full-size image)</a>
 </p>**
 
 ## Using the Campbell Cloud Plugin Commands ##

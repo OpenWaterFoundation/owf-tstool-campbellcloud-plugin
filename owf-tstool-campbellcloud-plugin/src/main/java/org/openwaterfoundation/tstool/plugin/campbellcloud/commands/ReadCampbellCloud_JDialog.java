@@ -89,25 +89,34 @@ private SimpleJButton __cancel_JButton = null;
 private SimpleJButton __ok_JButton = null;
 private SimpleJButton __help_JButton = null;
 private ReadCampbellCloud_Command __command = null;
+// General (top).
 private SimpleJComboBox __DataStore_JComboBox = null;
 private SimpleJComboBox __DataType_JComboBox;
 private SimpleJComboBox __Interval_JComboBox;
-private TSFormatSpecifiersJPanel __Alias_JTextField = null;
+// Single.
 private JTabbedPane __tsInfo_JTabbedPane = null;
-private JPanel __multipleTS_JPanel = null;
 private SimpleJComboBox __StationId_JComboBox = null;
 private JTextField __StationIdNote_JTextField;
 private JTextField __DataSource_JTextField;
+private JTextField __TSIDFromParts_JTextField;
+private JTextField __TSID_JTextField;
+// Multiple.
+private JPanel __multipleTS_JPanel = null;
+private SimpleJComboBox __ReadTimeSeries_JComboBox;
+private JTextField __TimeSeriesCatalogTableID_JTextField;
+// General (bottom).
+private TSFormatSpecifiersJPanel __Alias_JTextField = null;
+private JTextField __InputStart_JTextField;
+private JTextField __InputEnd_JTextField;
+private SimpleJComboBox __ReadData_JComboBox = null;
 private SimpleJComboBox __IrregularInterval_JComboBox = null;
 //private SimpleJComboBox __Read24HourAsDay_JComboBox = null;
 //private SimpleJComboBox __ReadDayAs24Hour_JComboBox = null;
-private JTextField __TSID_JTextField;
-private JTextField __InputStart_JTextField;
-private JTextField __InputEnd_JTextField;
 private SimpleJComboBox __Timezone_JComboBox;
+private JTextField __Timeout_JTextField;
 private SimpleJComboBox	__Debug_JComboBox;
-
 private JTextArea __command_JTextArea = null;
+
 // Contains all input filter panels.  Use the CampbellCloudDataStore name/description and data type for each to
 // figure out which panel is active at any time.
 // Using the general panel and casting later causes a ClassCastException since classes are loaded in different ClassLoader.
@@ -297,22 +306,15 @@ private void checkInput () {
 	if ( __ignoreEvents ) {
         return; // Startup.
     }
-    // Put together a list of parameters to check.
+    // Create a list of parameters to check.
 	PropList props = new PropList ( "" );
 	__error_wait = false;
-	// Check parameters for the two command versions.
+
+	// General (top).
     String DataStore = __DataStore_JComboBox.getSelected();
     if ( DataStore.length() > 0 ) {
         props.set ( "DataStore", DataStore );
     }
-	String Alias = __Alias_JTextField.getText().trim();
-	if ( Alias.length() > 0 ) {
-		props.set ( "Alias", Alias );
-	}
-	//String TSID = __TSID_JTextField.getText().trim();
-	//if ( TSID.length() > 0 ) {
-	//	props.set ( "TSID", TSID );
-	//}
     String DataType = getSelectedDataType();
 	if ( DataType.length() > 0 ) {
 		props.set ( "DataType", DataType );
@@ -321,10 +323,18 @@ private void checkInput () {
 	if ( Interval.length() > 0 ) {
 		props.set ( "Interval", Interval );
 	}
+    
+    // Single.
 	String StationId = getSelectedStationId();
 	if ( StationId.length() > 0 ) {
 		props.set ( "StationId", StationId );
 	}
+	String TSID = __TSID_JTextField.getText().trim();
+	if ( TSID.length() > 0 ) {
+		props.set ( "TSID", TSID );
+	}
+    
+    // Multiple.
 	InputFilter_JPanel filterPanel = getVisibleInputFilterPanel();
 	int whereCount = 0; // Number of non-empty Where parameters specified.
 	if ( filterPanel != null ) {
@@ -341,14 +351,41 @@ private void checkInput () {
         	}
 		}
 	}
-	// Both command types use these.
+    if ( whereCount > 0 ) {
+        // Input filters are specified so check:
+    	// - this is done in the input filter because that code is called from this command and main TSTool UI
+        InputFilter_JPanel ifp = getVisibleInputFilterPanel();
+        if ( ifp != null ) {
+        	// Set a property to pass to the general checkCommandParameters method so that the
+        	// results can be combined with the other command parameter checks.
+        	props.set("InputFiltersCheck",ifp.checkInputFilters(false));
+        }
+    }
+	String ReadTimeSeries = __ReadTimeSeries_JComboBox.getSelected();
+	if ( !ReadTimeSeries.isEmpty() ) {
+		props.set ( "ReadTimeSeries", ReadTimeSeries );
+	}
+	String TimeSeriesCatalogTableID = __TimeSeriesCatalogTableID_JTextField.getText().trim();
+	if ( !TimeSeriesCatalogTableID.isEmpty() ) {
+		props.set ( "TimeSeriesCatalogTableID", TimeSeriesCatalogTableID );
+	}
+    
+    // General (bottom).
+	String Alias = __Alias_JTextField.getText().trim();
+	if ( Alias.length() > 0 ) {
+		props.set ( "Alias", Alias );
+	}
 	String InputStart = __InputStart_JTextField.getText().trim();
-	String InputEnd = __InputEnd_JTextField.getText().trim();
 	if ( InputStart.length() > 0 ) {
 		props.set ( "InputStart", InputStart );
 	}
+	String InputEnd = __InputEnd_JTextField.getText().trim();
 	if ( InputEnd.length() > 0 ) {
 		props.set ( "InputEnd", InputEnd );
+	}
+	String ReadData = __ReadData_JComboBox.getSelected();
+	if ( !ReadData.isEmpty() ) {
+		props.set ( "ReadData", ReadData );
 	}
     String IrregularInterval = __IrregularInterval_JComboBox.getSelected();
     if ( IrregularInterval.length() > 0 ) {
@@ -364,24 +401,19 @@ private void checkInput () {
         props.set ( "ReadDayAs24Hour", ReadDayAs24Hour );
     }
     */
-    if ( whereCount > 0 ) {
-        // Input filters are specified so check:
-    	// - this is done in the input filter because that code is called from this command and main TSTool UI
-        InputFilter_JPanel ifp = getVisibleInputFilterPanel();
-        if ( ifp != null ) {
-        	// Set a property to pass to the general checkCommandParameters method so that the
-        	// results can be combined with the other command parameter checks.
-        	props.set("InputFiltersCheck",ifp.checkInputFilters(false));
-        }
-    }
 	String Timezone = __Timezone_JComboBox.getSelected();
 	if ( Timezone.length() > 0 ) {
 		props.set ( "Timezone", Timezone );
+	}
+	String Timeout = __Timeout_JTextField.getText().trim();
+	if ( !Timeout.isEmpty() ) {
+		props.set ( "Timeout", Timeout );
 	}
 	String Debug = __Debug_JComboBox.getSelected();
 	if ( Debug.length() > 0 ) {
 		props.set ( "Debug", Debug );
 	}
+
 	try {
 	    // This will warn the user.
 		__command.checkCommandParameters ( props, null, 1 );
@@ -397,20 +429,21 @@ Commit the edits to the command.
 In this case the command parameters have already been checked and no errors were detected.
 */
 private void commitEdits () {
+	// General (top).
 	String DataStore = __DataStore_JComboBox.getSelected();
     __command.setCommandParameter ( "DataStore", DataStore );
-	String Alias = __Alias_JTextField.getText().trim();
-	__command.setCommandParameter ( "Alias", Alias );
-	//String TSID = __TSID_JTextField.getText().trim();
-	//__command.setCommandParameter ( "TSID", TSID );
 	String DataType = getSelectedDataType();
 	__command.setCommandParameter ( "DataType", DataType );
 	String Interval = getSelectedInterval();
 	__command.setCommandParameter ( "Interval", Interval );
-	// Match 1 time series.
+
+	// Single.
 	String StationId = getSelectedStationId();
 	__command.setCommandParameter ( "StationId", StationId );
-	// 1+ time series.
+	String TSID = __TSID_JTextField.getText().trim();
+	__command.setCommandParameter ( "TSID", TSID );
+
+	// Multiple.
 	String delim = ";";
 	//InputFilter_JPanel filterPanel = getVisibleInputFilterPanel();
 	CampbellCloud_TimeSeries_InputFilter_JPanel filterPanel = getVisibleInputFilterPanel();
@@ -423,11 +456,21 @@ private void commitEdits () {
 	    	__command.setCommandParameter ( "Where" + i, where );
 		}
 	}
+	String ReadTimeSeries = __ReadTimeSeries_JComboBox.getSelected();
+	__command.setCommandParameter ( "ReadTimeSeries", ReadTimeSeries );
+	String TimeSeriesCatalogTableID = __TimeSeriesCatalogTableID_JTextField.getText().trim();
+	__command.setCommandParameter ( "TimeSeriesCatalogTableID", TimeSeriesCatalogTableID );
+
+	// General (bottom).
+	String Alias = __Alias_JTextField.getText().trim();
+	__command.setCommandParameter ( "Alias", Alias );
 	// Both versions of the commands use these.
 	String InputStart = __InputStart_JTextField.getText().trim();
 	__command.setCommandParameter ( "InputStart", InputStart );
 	String InputEnd = __InputEnd_JTextField.getText().trim();
 	__command.setCommandParameter ( "InputEnd", InputEnd );
+	String ReadData = __ReadData_JComboBox.getSelected();
+	__command.setCommandParameter (	"ReadData", ReadData );
 	String IrregularInterval = __IrregularInterval_JComboBox.getSelected();
 	__command.setCommandParameter (	"IrregularInterval", IrregularInterval );
 	/*
@@ -438,6 +481,8 @@ private void commitEdits () {
 	*/
 	String Timezone = __Timezone_JComboBox.getSelected();
 	__command.setCommandParameter ( "Timezone", Timezone );
+	String Timeout = __Timeout_JTextField.getText().trim();
+	__command.setCommandParameter ( "Timeout", Timeout );
 	String Debug = __Debug_JComboBox.getSelected();
 	__command.setCommandParameter (	"Debug", Debug );
 }
@@ -454,7 +499,6 @@ private CampbellCloudDataStore getDataStore() {
 Get the input filter list.
 @return the input filter list
 */
-//private List<InputFilter_JPanel> getInputFilterJPanelList ()
 private List<CampbellCloud_TimeSeries_InputFilter_JPanel> getInputFilterJPanelList () {
     return __inputFilterJPanelList;
 }
@@ -754,16 +798,26 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     JGUIUtil.addComponent(singleTS_JPanel, new JLabel ( "Used in the TSID, currently always 'CampbellCloud'."),
         3, ySingle, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
 
-    JGUIUtil.addComponent(singleTS_JPanel, new JLabel ( "TSID (full):"),
+    JGUIUtil.addComponent(singleTS_JPanel, new JLabel ( "TSID from parts (full):"),
         0, ++ySingle, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
-    __TSID_JTextField = new JTextField ( "" );
-    __TSID_JTextField.setToolTipText("The time series identifier that will be used to read the time series.");
-    __TSID_JTextField.setEditable ( false );
+    __TSIDFromParts_JTextField = new JTextField ( "" );
+    __TSIDFromParts_JTextField.setEditable ( false );
+    __TSIDFromParts_JTextField.addKeyListener ( this );
+    JGUIUtil.addComponent(singleTS_JPanel, __TSIDFromParts_JTextField,
+        1, ySingle, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.HORIZONTAL, GridBagConstraints.WEST);
+    JGUIUtil.addComponent(singleTS_JPanel, new JLabel ( "Information - created from above parameters."),
+        3, ySingle, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+
+    JGUIUtil.addComponent(singleTS_JPanel, new JLabel("TSID:"),
+        0, ++ySingle, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
+    __TSID_JTextField = new JTextField(30);
+    __TSID_JTextField.setToolTipText("Time series identifier to request, can use ${Property}.");
     __TSID_JTextField.addKeyListener ( this );
+    __TSID_JTextField.getDocument().addDocumentListener(this);
     JGUIUtil.addComponent(singleTS_JPanel, __TSID_JTextField,
         1, ySingle, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.HORIZONTAL, GridBagConstraints.WEST);
-    JGUIUtil.addComponent(singleTS_JPanel, new JLabel ( "Created from above parameters."),
-        3, ySingle, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+    JGUIUtil.addComponent(singleTS_JPanel, new JLabel ("Optional - TSID to request (default=use other query parameters)."),
+        3, ySingle, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST );
 
     __multipleTS_JPanel = new JPanel();
     __multipleTS_JPanel.setLayout(new GridBagLayout());
@@ -781,6 +835,33 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
 
     // Initialize all the filters (selection will be based on data store).
     initializeInputFilters ( __multipleTS_JPanel, ++yMult, dataStoreList );
+
+    JGUIUtil.addComponent(__multipleTS_JPanel, new JLabel ( "Read time series?:"),
+		0, ++yMult, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
+    List<String> ReadTimeSeries_List = new ArrayList<>( 3 );
+	ReadTimeSeries_List.add ( "" );
+	ReadTimeSeries_List.add ( __command._False );
+	ReadTimeSeries_List.add ( __command._True );
+	__ReadTimeSeries_JComboBox = new SimpleJComboBox ( false );
+	__ReadTimeSeries_JComboBox.setToolTipText("Read time series? Used when only reading the time series catalog.");
+	__ReadTimeSeries_JComboBox.setData ( ReadTimeSeries_List);
+	__ReadTimeSeries_JComboBox.select ( 0 );
+	__ReadTimeSeries_JComboBox.addActionListener ( this );
+    JGUIUtil.addComponent(__multipleTS_JPanel, __ReadTimeSeries_JComboBox,
+		1, yMult, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+    JGUIUtil.addComponent(__multipleTS_JPanel, new JLabel (
+		"Optional - read time series (default=" + __command._True + ")?"),
+		3, yMult, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+
+    JGUIUtil.addComponent(__multipleTS_JPanel, new JLabel ("Time series catalog table ID:"),
+        0, ++yMult, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
+    __TimeSeriesCatalogTableID_JTextField = new JTextField (20);
+    __TimeSeriesCatalogTableID_JTextField.setToolTipText("Table ID to save the time series catalog.");
+    __TimeSeriesCatalogTableID_JTextField.addKeyListener (this);
+    JGUIUtil.addComponent(__multipleTS_JPanel, __TimeSeriesCatalogTableID_JTextField,
+        1, yMult, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.HORIZONTAL, GridBagConstraints.WEST);
+    JGUIUtil.addComponent(__multipleTS_JPanel, new JLabel ( "Optional - table for catalog (default=no table)."),
+        3, yMult, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST );
 
     JGUIUtil.addComponent(main_JPanel, new JLabel("Alias to assign:"),
         0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
@@ -801,7 +882,7 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     __InputStart_JTextField.addKeyListener (this);
     JGUIUtil.addComponent(main_JPanel, __InputStart_JTextField,
         1, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - overrides the global input start."),
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - overrides the global input start (default=computer timezone)."),
         3, y, 3, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST );
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Input end:"),
@@ -811,8 +892,25 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     __InputEnd_JTextField.addKeyListener (this);
     JGUIUtil.addComponent(main_JPanel, __InputEnd_JTextField,
         1, y, 6, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - overrides the global input end."),
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - overrides the global input end (default=computer timezone)."),
         3, y, 3, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST );
+
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Read data?:"),
+		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
+    List<String> ReadData_List = new ArrayList<>( 3 );
+	ReadData_List.add ( "" );
+	ReadData_List.add ( __command._False );
+	ReadData_List.add ( __command._True );
+	__ReadData_JComboBox = new SimpleJComboBox ( false );
+	__ReadData_JComboBox.setToolTipText("Read data? Useful to streamline workflow development.");
+	__ReadData_JComboBox.setData ( ReadData_List);
+	__ReadData_JComboBox.select ( 0 );
+	__ReadData_JComboBox.addActionListener ( this );
+    JGUIUtil.addComponent(main_JPanel, __ReadData_JComboBox,
+		1, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+    JGUIUtil.addComponent(main_JPanel, new JLabel (
+		"Optional - read data values (default=" + __command._True + ")."),
+		3, y, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Irregular interval:"),
 		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
@@ -886,8 +984,18 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
 	__Timezone_JComboBox.addActionListener ( this );
     JGUIUtil.addComponent(main_JPanel, __Timezone_JComboBox,
         1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - output timezone (default = computer's zone)."),
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - output timezone (default = system/station timezone)."),
         3, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Timeout:"),
+        0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
+    __Timeout_JTextField = new JTextField ( "", 20 );
+    __Timeout_JTextField.setToolTipText("Timeout for connection and read, in seconds.");
+    __Timeout_JTextField.addKeyListener ( this );
+    JGUIUtil.addComponent(main_JPanel, __Timeout_JTextField,
+        1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.HORIZONTAL, GridBagConstraints.WEST);
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - timeout for requests, seconds (default = 300 = 5 minutes)."),
+        3, y, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Debug:"),
 		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
@@ -1156,7 +1264,7 @@ private void populateStationIdChoices ( CampbellCloudDataStore datastore, String
     List<String> stationIds = new ArrayList<>();
     boolean doInclude = true;
     List<Station> stationList = datastore.getStationList();
-    // Get the list 
+    // Get the list.
    	if ( doDataType || doInterval) {
     	List<TimeSeriesCatalog> tscatalogList = datastore.readTimeSeriesCatalog(dataType, interval, getVisibleInputFilterPanel());
     	for ( TimeSeriesCatalog tscatalog : tscatalogList ) {
@@ -1216,37 +1324,64 @@ Refresh the command string from the dialog contents.
 */
 private void refresh () {
 	String routine = getClass().getSimpleName() + ".refresh";
-	String Alias = "";
 	__error_wait = false;
+	// General (top).
 	String DataStore = "";
 	String DataType = "";
 	String Interval = "";
+	// Single.
 	String StationId = "";
+	String TSID = "";
+	// Multiple.
 	String filterDelim = ";";
+	String ReadTimeSeries = "";
+	String TimeSeriesCatalogTableID = "";
+	// General (bottom).
+	String Alias = "";
 	String InputStart = "";
 	String InputEnd = "";
+	String ReadData = "";
 	String IrregularInterval = "";
 	//String Read24HourAsDay = "";
 	//String ReadDayAs24Hour = "";
 	String Timezone = "";
+	String Timeout = "";
 	String Debug = "";
 	PropList props = null;
 	if ( __first_time ) {
 		__first_time = false;
 		// Get the parameters from the command.
 		props = __command.getCommandParameters();
+		// General (top).
 	    DataStore = props.getValue ( "DataStore" );
 	    DataType = props.getValue ( "DataType" );
 	    Interval = props.getValue ( "Interval" );
+	    // Single.
 	    StationId = props.getValue ( "StationId" );
+	    TSID = props.getValue ( "TSID" );
+	    // Multiple.
+	    ReadTimeSeries = props.getValue ( "ReadTimeSeries" );
+	    TimeSeriesCatalogTableID = props.getValue ( "TimeSeriesCatalogTableID" );
+	    // General (bottom).
 		Alias = props.getValue ( "Alias" );
 		InputStart = props.getValue ( "InputStart" );
 		InputEnd = props.getValue ( "InputEnd" );
+		ReadData = props.getValue ( "ReadData" );
 		IrregularInterval = props.getValue ( "IrregularInterval" );
 		//Read24HourAsDay = props.getValue ( "Read24HourAsDay" );
 		//ReadDayAs24Hour = props.getValue ( "ReadDayAs24Hour" );
 		Timezone = props.getValue ( "Timezone" );
+		Timeout = props.getValue ( "Timeout" );
 		Debug = props.getValue ( "Debug" );
+
+		// Get initial command parameter values, which will be shown in lists in addition to other values:
+		// - needed to handle ${Property} in parameter values
+        //this.dataStoreInitial = this.__command.getCommandParameters().getValue("DataStore");
+        //this.dataTypeInitial = this.__command.getCommandParameters().getValue("DataType");
+        //this.intervalInitial = this.__command.getCommandParameters().getValue("Interval");
+        this.stationIdInitial = this.__command.getCommandParameters().getValue("StationId");
+		
+		// General (top).
         // The data store list is set up in initialize() but is selected here.
         if ( JGUIUtil.isSimpleJComboBoxItem(__DataStore_JComboBox, DataStore, JGUIUtil.NONE, null, null ) ) {
             __DataStore_JComboBox.select ( null ); // To ensure that following causes an event.
@@ -1332,6 +1467,9 @@ private void refresh () {
             	__Interval_JComboBox.select (0);
             }
         }
+	    
+	    // Single.
+	    
 	    // Populate the location ID choices.  This will include ${Property} location that will work in discovery mode.
 	    populateStationIdChoices(getDataStore(), this.stationIdInitial);
         //int [] index = new int[1];
@@ -1367,7 +1505,12 @@ private void refresh () {
                 }
             }
         }
+	    if ( TSID != null ) {
+		    __TSID_JTextField.setText ( TSID );
+	    }
 
+	    // Multiple.
+	    
 		// Selecting the data type and interval will result in the corresponding filter group being selected.
 		selectInputFilter(getDataStore());
 		InputFilter_JPanel filterPanel = getVisibleInputFilterPanel();
@@ -1402,6 +1545,32 @@ private void refresh () {
 		    filterPanel.revalidate();
 		    //filterPanel.repaint();
 		}
+		if ( (ReadTimeSeries == null) || ReadTimeSeries.isEmpty() ) {
+			// Select default.
+			__ReadTimeSeries_JComboBox.select ( 0 );
+		}
+		else {
+		    if ( JGUIUtil.isSimpleJComboBoxItem( __ReadTimeSeries_JComboBox,
+				ReadTimeSeries, JGUIUtil.NONE, null, null ) ) {
+				__ReadTimeSeries_JComboBox.select ( ReadTimeSeries );
+				// Select the multiple tab.
+			    __tsInfo_JTabbedPane.setSelectedIndex(1);
+			}
+			else {
+			    Message.printWarning ( 1, routine,
+				"Existing command references an invalid ReadTimeSeries value \"" +
+				ReadTimeSeries + "\".  Select a different value or Cancel.");
+				__error_wait = true;
+			}
+		}
+	    if ( (TimeSeriesCatalogTableID != null) && !TimeSeriesCatalogTableID.isEmpty() ) {
+		    __TimeSeriesCatalogTableID_JTextField.setText ( TimeSeriesCatalogTableID );
+			// Select the multiple tab.
+		    __tsInfo_JTabbedPane.setSelectedIndex(1);
+	    }
+		
+		// General (bottom).
+		
 	    if ( Alias != null ) {
 		    __Alias_JTextField.setText ( Alias );
 	    }
@@ -1410,6 +1579,22 @@ private void refresh () {
 		}
 		if ( InputEnd != null ) {
 			__InputEnd_JTextField.setText ( InputEnd );
+		}
+		if ( ReadData == null ) {
+			// Select default.
+			__ReadData_JComboBox.select ( 0 );
+		}
+		else {
+		    if ( JGUIUtil.isSimpleJComboBoxItem( __ReadData_JComboBox,
+				ReadData, JGUIUtil.NONE, null, null ) ) {
+				__ReadData_JComboBox.select ( ReadData);
+			}
+			else {
+			    Message.printWarning ( 1, routine,
+				"Existing command references an invalid ReadData value \"" +
+				ReadData + "\".  Select a different value or Cancel.");
+				__error_wait = true;
+			}
 		}
 	    if ( JGUIUtil.isSimpleJComboBoxItem( __IrregularInterval_JComboBox, IrregularInterval, JGUIUtil.NONE, null, null ) ) {
             //__IrregularInterval_JComboBox.select (index[0] );
@@ -1467,6 +1652,9 @@ private void refresh () {
             }
         }
         */
+	    if ( Timeout != null ) {
+	    	__Timeout_JTextField.setText ( Timeout );
+	    }
 	    if ( JGUIUtil.isSimpleJComboBoxItem( __Debug_JComboBox, Debug, JGUIUtil.NONE, null, null ) ) {
             //__Debug_JComboBox.select (index[0] );
             __Debug_JComboBox.select (Debug);
@@ -1486,47 +1674,76 @@ private void refresh () {
             }
         }
 	}
+
 	// Regardless, reset the command from the fields.
+
+	// General (top).
     DataStore = __DataStore_JComboBox.getSelected();
     if ( DataStore == null ) {
         DataStore = "";
     }
-	Alias = __Alias_JTextField.getText().trim();
+    DataType = getSelectedDataType();
+    Interval = getSelectedInterval();
+
+    // Single:
+    // - set derived text fields here
 	StationId = getSelectedStationId(); // Will strip out the trailing name.
 	//StationId = __StationId_JComboBox.getSelected();
 	String DataSource = __DataSource_JTextField.getText().trim();
-    DataType = getSelectedDataType();
-    Interval = getSelectedInterval();
-    // Format a tsid to display in the uneditable text field.
-	StringBuffer tsid = new StringBuffer();
-	tsid.append ( StationId );
-	tsid.append ( "." );
-	tsid.append ( DataSource );
-	tsid.append ( "." );
+    // Format a TSID to display in the uneditable text field.
+	StringBuffer tsidFromParts = new StringBuffer();
+	tsidFromParts.append ( StationId );
+	tsidFromParts.append ( "." );
+	tsidFromParts.append ( DataSource );
+	tsidFromParts.append ( "." );
 	String dataType = DataType;
 	if ( (dataType.indexOf("-") >= 0) || (dataType.indexOf(".") >= 0) ) {
 		dataType = "'" + dataType + "'";
 	}
-	tsid.append ( dataType );
-	tsid.append ( "." );
+	tsidFromParts.append ( dataType );
+	tsidFromParts.append ( "." );
 	if ( (Interval != null) && !Interval.equals("*") ) {
-		tsid.append ( Interval );
+		tsidFromParts.append ( Interval );
 	}
-	tsid.append ( "~" + getInputNameForTSID() );
-	__TSID_JTextField.setText ( tsid.toString() );
-	// Regardless, reset the command from the fields.
+	tsidFromParts.append ( "~" + getInputNameForTSID() );
+	__TSIDFromParts_JTextField.setText ( tsidFromParts.toString() );
+	TSID = __TSID_JTextField.getText().trim();
+
+    // Multiple.
+	ReadTimeSeries = __ReadTimeSeries_JComboBox.getSelected();
+	TimeSeriesCatalogTableID = __TimeSeriesCatalogTableID_JTextField.getText().trim();
+
+    // General (bottom).
+	Alias = __Alias_JTextField.getText().trim();
+	InputStart = __InputStart_JTextField.getText().trim();
+	InputEnd = __InputEnd_JTextField.getText().trim();
+	ReadData = __ReadData_JComboBox.getSelected();
+	IrregularInterval = __IrregularInterval_JComboBox.getSelected();
+	Timezone = __Timezone_JComboBox.getSelected();
+	Timeout = __Timeout_JTextField.getText().trim();
+	Debug = __Debug_JComboBox.getSelected();
+
+	// Set the properties in the command.
 	props = new PropList ( __command.getCommandName() );
+
+	// General (top).
     props.add ( "DataStore=" + DataStore );
-	//props.add ( "TSID=" + TSID );
-	if ( (StationId != null) && !StationId.isEmpty() ) {
-		props.add ( "StationId=" + StationId );
-	}
 	if ( (DataType != null) && !DataType.isEmpty() ) {
 		props.add ( "DataType=" + DataType );
 	}
 	if ( (Interval != null) && !Interval.isEmpty() ) {
 		props.add ( "Interval=" + Interval );
 	}
+
+    // Single.
+	if ( (StationId != null) && !StationId.isEmpty() ) {
+		props.add ( "StationId=" + StationId );
+	}
+	if ( (TSID != null) && !TSID.isEmpty() ) {
+		props.add ( "TSID=" + TSID );
+	}
+	
+	// Multiple.
 	// Set the where clauses.
 	// Since numbers may cause problems, first unset and then set.
 	InputFilter_JPanel filterPanel = getVisibleInputFilterPanel();
@@ -1556,12 +1773,14 @@ private void refresh () {
 	else {
 		//Message.printStatus(2, routine, "Visible input filter panel is null.");
 	}
+	props.add ( "ReadTimeSeries=" + ReadTimeSeries );
+	props.add ( "TimeSeriesCatalogTableID=" + TimeSeriesCatalogTableID );
+	
+	// General (bottom).
 	props.add ( "Alias=" + Alias );
-	InputStart = __InputStart_JTextField.getText().trim();
 	props.add ( "InputStart=" + InputStart );
-	InputEnd = __InputEnd_JTextField.getText().trim();
 	props.add ( "InputEnd=" + InputEnd );
-	IrregularInterval = __IrregularInterval_JComboBox.getSelected();
+	props.add ( "ReadData=" + ReadData );
 	props.add ( "IrregularInterval=" + IrregularInterval );
 	/*
 	Read24HourAsDay = __Read24HourAsDay_JComboBox.getSelected();
@@ -1569,9 +1788,8 @@ private void refresh () {
 	ReadDayAs24Hour = __ReadDayAs24Hour_JComboBox.getSelected();
 	props.add ( "ReadDayAs24Hour=" + ReadDayAs24Hour );
 	*/
-	Timezone = __Timezone_JComboBox.getSelected();
 	props.add ( "Timezone=" + Timezone );
-	Debug = __Debug_JComboBox.getSelected();
+	props.add ( "Timeout=" + Timeout );
 	props.add ( "Debug=" + Debug );
 	__command_JTextArea.setText( __command.toString ( props ).trim() );
 
