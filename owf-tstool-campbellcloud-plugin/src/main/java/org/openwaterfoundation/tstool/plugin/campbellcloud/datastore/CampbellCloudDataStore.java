@@ -1729,6 +1729,8 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     		if ( dataList.size() > 0 ) {
     			// Set the period based on data from the first and last values:
     			// - this values may be adjusted below
+    			Message.printStatus(2, routine, "Read " + dataList.size() + " data points for datastream \""
+    				+ datastreamId + "\" for readStartUTC=" + readStartUTC + " to readEndUTC=" + readEndUTC );
     			DateTime readStartOutput = dataList.get(0).getTimestampAsDateTime(outputZoneId);
     			ts.setDate1(readStartOutput);
     			ts.setDate1Original(ts.getDate1());
@@ -1744,7 +1746,11 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     			// Loop through the data values and set the data.
     			for ( DatastreamDatapointData data : dataList ) {
     				DateTime dt = data.getTimestampAsDateTime ( outputZoneId );
-    				ts.setDataValue(dt, data.getValue());
+    				Double value = data.getValue();
+    				if ( (dt != null) && (value != null) ) {
+    					// Nulls may occur if the API changes?
+    					ts.setDataValue(dt, data.getValue());
+    				}
     			}
     		}
     		else {
