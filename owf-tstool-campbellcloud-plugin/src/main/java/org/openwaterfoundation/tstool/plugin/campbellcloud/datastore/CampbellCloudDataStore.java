@@ -1723,10 +1723,10 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     		String datastreamId = tscatalog.getDatastreamId();
     		DatastreamDatapoint datastreamDatapoint = readDatastreamDatapoint ( datastreamId, readStartUTC, readEndUTC, timeoutSeconds );
 
-    		// The data are ordered with oldest first.
-
+    		// The data are ordered with oldest first:
+    		// - the 'dataList' may be null, for example when the Campbell Cloud system is offline
     		List<DatastreamDatapointData> dataList = datastreamDatapoint.getData();
-    		if ( dataList.size() > 0 ) {
+    		if ( (dataList != null) && (dataList.size() > 0) ) {
     			// Set the period based on data from the first and last values:
     			// - this values may be adjusted below
     			Message.printStatus(2, routine, "Read " + dataList.size() + " data points for datastream \""

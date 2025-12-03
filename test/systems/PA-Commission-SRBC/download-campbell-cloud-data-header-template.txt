@@ -6,7 +6,8 @@
 # @Source 1010100
 # @Timezone UTC
 #
-MISSING_TIME_SERIES_INSERT
+# Problems:
+INSERT_PROBLEMS_HERE
 #
 #    SourceLocId = CC station ID
 # SourceDataType = CC datastream field

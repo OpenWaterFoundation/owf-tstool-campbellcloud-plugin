@@ -20,6 +20,7 @@ TSTool and Plugin Version Compatibility
 
 | **Plugin Version** | **Required TSTool Version** | **Comments** |
 | -- | -- | -- |
+| 1.0.2 | >= 15.0.0 | Maintenance release to improve error handling when no data are available for a time series. |
 | 1.0.1 | >= 15.0.0 | Maintenance release to clean up issues for the initial production release. |
 | 1.0.0 | >= 15.0.0 | Initial release. |
 
@@ -28,10 +29,17 @@ TSTool and Plugin Version Compatibility
 Release notes for specific versions are listed below,
 with repository issue number.
 
+*   [Version 1.0.2](#version-102)
 *   [Version 1.0.1](#version-101)
 *   [Version 1.0.0](#version-100)
 
 ----------
+
+## Version 1.0.2 ##
+
+**Maintenance release to improve error handling when no data are available for a time series.**
+
+*   ![change](change.png) Add additional error handling for case when the Campbell Cloud API returns no datastream data for a time series.
 
 ## Version 1.0.1 ##
 
