@@ -35,10 +35,12 @@ StartLog(LogFile="${LogFile}")
 # - the different Campbell Cloud stations report data at different intervals
 #   (e.g., RangeVUE is less frequent regular reports if no change in data)
 #
-#@version 1.0.2
-#@versionDate 2025-11-269
+#@version 1.0.3
+#@versionDate 2025-12-03
 #
 # History:
+# 1.0.3, 2025-12-03 - Add more error handling for more possible cases.
+#                   - Generalize a problems file to insert in the output (concept can also work for other workflows).
 # 1.0.2, 2025-11-29 - Remove DateTime column since no longer needed.
 #                     Add comments to the header for time series with no data.
 # 1.0.1, 2025-11-26 - Add DateTime column to the dataloader file to work with current dataloader.
@@ -51,25 +53,34 @@ StartLog(LogFile="${LogFile}")
 # - 'CurrentTime' = current date/time for logging
 # - 'DataLoaderTime' = current date/time for data loader CSV file name
 # - 'DoCreateDataloaderFile' = true if output file should be created for the NovaStar dataloader
+# - 'DoCreateExcelTSCatalog' = set to true to output an Excel time series catalog, used to help with system setup
+# - 'ProblemCount' = increment to indicate that the problems file has messages
 SetProperty(PropertyName="CurrentTime",PropertyType="DateTime",PropertyValue="CurrentToSecond")
 FormatDateTimeProperty(PropertyName="DataLoaderTime",DateTimePropertyName="CurrentTime",Format="%Y%m%d%H%M")
 SetProperty(PropertyName="DoCreateDataloaderFile",PropertyType="Boolean",PropertyValue="True")
+SetProperty(PropertyName="DoCreateExcelTSCatalog",PropertyType="Boolean",PropertyValue="False")
+SetProperty(PropertyName="ProblemCount",PropertyType="Integer",PropertyValue="0")
+#
+# Remove the problem file for this workflow.
+RemoveFile(InputFile="${MissingTimeSeriesFile}",IfNotFound="Ignore")
 #
 # Set the input period to:
 # - 'InputEnd' = rounded to 5 minutes in the future
 # - 'InputStart' = 'InputEnd' minus 3 hours (can adjust based on production system behavior)
 #                  Use longer than 3 hours during startup to test while stations are offline for transport.
-SetInputPeriod(InputStart="CurrentToSecond.Round(5Min).RoundDirection(>) - 6Day",InputEnd="CurrentToSecond.Round(5Min).RoundDirection(>)")
+SetInputPeriod(InputStart="CurrentToSecond.Round(5Min).RoundDirection(>) - 7Day",InputEnd="CurrentToSecond.Round(5Min).RoundDirection(>)")
 #
 # Set properties based on whether RunMode is Development or Production:
-# - 'DataloaderFolder' - where to creat the output file from Campbell Cloud data download
-# - 'OutputFolder' - where to create other local output files (not log and not dataloader files)
+# - 'DataloaderFolder' = where to creat the output file from Campbell Cloud data download
+# - 'OutputFolder' = where to create other local output files (not log and not dataloader files)
+# - 'ProblemsFile' = file for specific problems, which will be inserted into the header template to replace INSERT_PROBLEMS_HERE
 SetProperty(PropertyName="DataloaderFolder",PropertyType="String",PropertyValue="/usr/ns/dataloader")
 SetProperty(PropertyName="OutputFolder",PropertyType="String",PropertyValue="results")
-If(Name="If_RunMode_Development",Condition="${LinuxOS} == False")
+SetProperty(PropertyName="ProblemsFile",PropertyType="String",PropertyValue="${OutputFolder}/${DataLoaderTime}-SRBC-CampbellCloud-problems.txt")
+If(Name="If_Dataloader_Linux",Condition="${LinuxOS} == False")
     # Write the dataloader file to the 'results' folder.
     SetProperty(PropertyName="DataloaderFolder",PropertyType="String",PropertyValue="results")
-EndIf(Name="If_RunMode_Development")
+EndIf(Name="If_Dataloader_Linux")
 #===============================================================================
 # Define an in-memory table to map Campbell Cloud datastream field to NovaStar data type:
 # - this expects SHEF parameter code to be used in NovaStar
@@ -97,8 +108,20 @@ InsertTableRow(TableID="CampbellCloudToNovaStarDataTypeTable",ColumnValues="CCDa
 # - this table is used to determine other data as needed
 # - write it to Excel temporarily to help with system setup
 ReadCampbellCloud(DataStore="CampbellCloud-SRBC",DataType="*",Interval="*",ReadTimeSeries="False",TimeSeriesCatalogTableID="CCTimeSeriesCatalogTable")
-# NewExcelWorkbook(OutputFile="${OutputFolder}/download-campbell-cloud-data-tscatalog.xlsx",Worksheets="tscatalog",KeepOpen="True")
-# WriteTableToExcel(TableID="CCTimeSeriesCatalogTable",OutputFile="${OutputFolder}/download-campbell-cloud-data-tscatalog.xlsx",Worksheet="tscatalog",ExcelAddress="A1",ExcelColumnNames="FirstRowInRange",ColumnWidths="*:Auto")
+SetPropertyFromTable(TableID="CCTimeSeriesCatalogTable",RowCountProperty="CCTimeSeriesCatalogTableRowCount")
+If(Name="If_CCTimeSeriesCatalogEmpty",Condition="${CCTimeSeriesCatalogTableRowCount} == 0")
+    # There is probably a problem with the Campbell Cloud datastore configuration or it is offline.
+    SetProperty(PropertyName="HaveError",PropertyType="Boolean",PropertyValue="True")
+    AppendFile(InputFile="${ProblemsFile}",AppendText="#  The Campbell Cloud time series catalog has zero time series (problem with datastore?).",OutputFile="${ProblemsFile}",IfNotFound="Ignore")
+    SetProperty(PropertyName="ProblemCount",PropertyType="Integer",PropertyValue="${ProblemCount}",Add="1")
+EndIf(Name="If_CCTimeSeriesCatalogEmpty")
+#
+# Write the time series catalog to Excel:
+# - do it even if the table is zero size
+If(Name="If_DoCreateExcelTSCatalog",Condition="${DoCreateExcelTSCatalog} == true")
+    NewExcelWorkbook(OutputFile="${OutputFolder}/download-campbell-cloud-data-tscatalog.xlsx",Worksheets="tscatalog",KeepOpen="True")
+    WriteTableToExcel(TableID="CCTimeSeriesCatalogTable",OutputFile="${OutputFolder}/download-campbell-cloud-data-tscatalog.xlsx",Worksheet="tscatalog",ExcelAddress="A1",ExcelColumnNames="FirstRowInRange",ColumnWidths="*:Auto")
+EndIf(Name="If_DoCreateExcelTSCatalog")
 #
 # Create a table containing the unique list of Campbell Cloud stations, with asset information:
 # - this is used to iterate below when requesting time series
@@ -113,16 +136,30 @@ SortTable(TableID="CCStationsTable",SortColumns="StationName")
 # - this is used to look up the NovaStar stationNumId from Campbell Cloud station ID stored in remote tag name
 # - also create a table listing unique NovaStar stations with remote tag name (Campbell Cloud station ID)
 ReadNovaStar(DataStore="nsdataws-nscloud",DataType="*",Interval="*",Where1="IncludeScaledTS;Matches;Only",ReadTimeSeries="False",TimeSeriesCatalogTableID="NSTimeSeriesCatalogTable")
+SetPropertyFromTable(TableID="NSTimeSeriesCatalogTable",RowCountProperty="NSTimeSeriesCatalogTableRowCount")
+If(Name="If_NSTimeSeriesCatalogEmpty",Condition="${NSTimeSeriesCatalogTableRowCount} == 0")
+    # There is probably a problem with the NovaStar datastore configuration or it is offline.
+    SetProperty(PropertyName="HaveError",PropertyType="Boolean",PropertyValue="True")
+    AppendFile(InputFile="${ProblemsFile}",AppendText="#  The Campbell Cloud time series catalog has zero time series (problem with datastore?).",OutputFile="${ProblemsFile}",IfNotFound="Ignore")
+    SetProperty(PropertyName="ProblemCount",PropertyType="Integer",PropertyValue="${ProblemCount}",Add="1")
+EndIf(Name="If_NSTimeSeriesCatalogEmpty")
 CopyTable(TableID="NSTimeSeriesCatalogTable",NewTableID="NSStationsTable",IncludeColumns="LocationId,StationNumId,StationName,StationRemoteTag",DistinctColumns="LocationId,StationNumId,StationName,StationRemoteTag")
 #===============================================================================
 # Join Campbell Cloud and NovaStar station tables.
 #===============================================================================
 CopyTable(TableID="CCStationsTable",NewTableID="JoinedStationsTable")
 JoinTables(TableID="JoinedStationsTable",TableToJoinID="NSStationsTable",JoinColumns="StationId:StationRemoteTag",RowCountProperty="JoinedStationsTableRowCount")
-# Check that the joined table size is the same size as the Campbell Cloud station list.
-If(Name="If_Stations_Count",Condition="${CCStationsTableRowCount} != ${JoinedStationsTableRowCount}")
-    Message(Message="The number of Campbell Cloud stations (${CCStationsTableRowCount}) is not the same as the joined NovaStar stations (${JoinedStationsTableRowCount}).  The dataloader file may be incomplete.",CommandStatus="WARNING")
-EndIf(Name="If_Stations_Count")
+SetPropertyFromTable(TableID="JoinedStationsTable",RowCountProperty="JoinedStationsTableRowCount")
+If(Name="If_JoinedStationsTableEmpty",Condition="${JoinedStationsTableRowCount} == 0")
+    SetProperty(PropertyName="HaveError",PropertyType="Boolean",PropertyValue="True")
+    AppendFile(InputFile="${ProblemsFile}",AppendText="#  The joined Campbell Cloud and NovaStar stations table has zero rows.",OutputFile="${ProblemsFile}",IfNotFound="Ignore")
+    SetProperty(PropertyName="ProblemCount",PropertyType="Integer",PropertyValue="${ProblemCount}",Add="1")
+EndIf(Name="If_JoinedStationsTableEmpty")
+If(Name="If_JoinedStationsTableWrongSize",Condition="${JoinedStationsTableRowCount} != ${CCStationsTableRowCount}")
+    SetProperty(PropertyName="HaveError",PropertyType="Boolean",PropertyValue="True")
+    AppendFile(InputFile="${ProblemsFile}",AppendText="#  The joined Campbell Cloud and NovaStar stations table row count (${JoinedStationsRableRowCount}) is different from the Campbell Cloud stations table row count (${CCStationsTableRowCount}).",OutputFile="${ProblemsFile}",IfNotFound="Ignore")
+    SetProperty(PropertyName="ProblemCount",PropertyType="Integer",PropertyValue="${ProblemCount}",Add="1")
+EndIf(Name="If_JoinedStationsTableWrongSize")
 #===============================================================================
 # Read Campbell Cloud time series.
 #===============================================================================
@@ -197,37 +234,40 @@ For(Name="For_Result_TimeSeries",IteratorProperty="TSID",IteratorValueProperty="
     SetTimeSeriesProperty(TSList="AllMatchingTSID",TSID="${TSID}",PropertyName="novastar.station.numid",PropertyType="String",PropertyValue="${NSLocId}")
 EndFor(Name="For_Result_TimeSeries")
 #===============================================================================
-# Create the insert file with the list of time series with no data.
+# Create/append to the problems file with the list of time series with no data.
 #===============================================================================
 # Use a file with the timestamp in the name to avoid conflicts:
 # - make sure to remove after processing
-SetProperty(PropertyName="MissingTimeSeriesFile",PropertyType="String",PropertyValue="${OutputFolder}/${DataLoaderTime}-SRBC-CampbellCloud-missing-ts.txt")
-RemoveFile(InputFile="${MissingTimeSeriesFile}",IfNotFound="Ignore")
+SetProperty(PropertyName="MissingTSDataCount",PropertyType="Integer",PropertyValue="0")
 For(Name="For_TS_Check",IteratorProperty="TSID",IteratorValueProperty="TSID",TSList="AllTS")
     # Message(Message="Checking time series ${TSID}.",CommandStatus="NOTIFICATION")
     If(Name="If_TS_Check",TSHasNoData="${TSID}")
         Message(Message="Time series ${TSID} has no data.",CommandStatus="NOTIFICATION")
-        If(Name="If_MissingTS_File_DoesNotExist0",FileDoesNotExist="${MissingTimeSeriesFile}")
-            # Add an explanatory line in front of the first time series.
-            AppendFile(InputFile="${MissingTimeSeriesFile}",AppendText="# The following time series have no data for the requested period:",OutputFile="${MissingTimeSeriesFile}",IfNotFound="Ignore")
-        EndIf(Name="If_MissingTS_File_DoesNotExist0")
-        AppendFile(InputFile="${MissingTimeSeriesFile}",AppendText="#  ${TSID}",OutputFile="${MissingTimeSeriesFile}",IfNotFound="Ignore")
+        SetProperty(PropertyName="MissingTSDataCount",PropertyType="Integer",PropertyValue="${MissingTSDataCount}",Add="1")
+        If(Name="If_MissingTS_CountFirst",Condition="${MissingTSDataCount} == 1")
+            # Add an explanatory line in front of the first time series with missing data.
+            AppendFile(InputFile="${ProblemsFile}",AppendText="#  The following time series have no data for the requested period:",OutputFile="${ProblemsFile}",IfNotFound="Ignore")
+        EndIf(Name="If_MissingTS_CountFirst")
+        AppendFile(InputFile="${ProblemsFile}",AppendText="#    ${TSID}",OutputFile="${ProblemsFile}",IfNotFound="Ignore")
+        SetProperty(PropertyName="ProblemCount",PropertyType="Integer",PropertyValue="${ProblemCount}",Add="1")
     EndIf(Name="If_TS_Check")
 EndFor(Name="For_TS_Check")
-# Update the header template file with the list of time series with no data:
-# - if there are no time series with missing data, use the template file directly
-# - if there are time series with missing data, use the output folder to manipultae
+#===============================================================================
+# Update the header template file so that it can be used as the output file header:
+# - if there are problems so, say this in the header
+# - if there are problems, include the problems in the file header
+# - 'HeaderTemplateFile' = the template header file containing a placeholder for problems (not modified)
+# - 'HeaderTempFile' = a temporary copy of 'HeaderTemplateFile' that is modified before using in the output file
+#===============================================================================
 SetProperty(PropertyName="HeaderTemplateFile",PropertyType="String",PropertyValue="download-campbell-cloud-data-header-template.txt")
-SetProperty(PropertyName="HeaderTempFile",PropertyType="String",PropertyValue="${OutputFolder}/${DataLoaderTime)-SRBC-CampbellCloud-header.txt")
-SetProperty(PropertyName="HeaderFile",PropertyType="String",PropertyValue="${HeaderTempFile}")
-If(Name="If_MissingTS_File_DoesNotExist",FileDoesNotExist="${MissingTimeSeriesFile}")
-    CopyFile(InputFile="${HeaderTemplateFile}",OutputFile="${HeaderTempFile}")
-    TextEdit(InputFile="${HeaderTempFile}",SearchFor="MISSING_TIME_SERIES_INSERT",ReplaceWith="# No time series were missing data for the requested period.",OutputFile="${HeaderTempFile}")
-EndIf(Name="If_MissingTS_File_DoesNotExist")
-If(Name="If_MissingTS_File_Exists",FileExists="${MissingTimeSeriesFile}")
-    CopyFile(InputFile="download-campbell-cloud-data-header-template.txt",OutputFile="${HeaderTempFile}")
-    TextEdit(InputFile="${HeaderTempFile}",SearchFor="MISSING_TIME_SERIES_INSERT",ReplaceWithFile="${MissingTimeSeriesFile}",OutputFile="${HeaderTempFile}")
-EndIf(Name="If_MissingTS_File_Exists")
+SetProperty(PropertyName="HeaderTempFile",PropertyType="String",PropertyValue="${OutputFolder}/${DataLoaderTime}-SRBC-CampbellCloud-header.txt")
+CopyFile(InputFile="${HeaderTemplateFile}",OutputFile="${HeaderTempFile}")
+If(Name="If_ProblemCountNot0",Condition="${ProblemCount} == 0")
+    TextEdit(InputFile="${HeaderTempFile}",SearchFor="INSERT_PROBLEMS_HERE",ReplaceWith="#  No problems were detected.",OutputFile="${HeaderTempFile}")
+EndIf(Name="If_ProblemCountNot0")
+If(Name="If_MissingTS_Count0",Condition="${MissingTSDataCount} > 0")
+    TextEdit(InputFile="${HeaderTempFile}",SearchFor="INSERT_PROBLEMS_HERE",ReplaceWithFile="${ProblemsFile}",OutputFile="${HeaderTempFile}")
+EndIf(Name="If_MissingTS_Count0")
 #===============================================================================
 # Create the NovaStar dataloader CSV file to load data.
 #===============================================================================
@@ -236,12 +276,11 @@ EndIf(Name="If_MissingTS_File_Exists")
 If(Name="If_Create_Dataloader_File",Condition="${DoCreateDataloaderFile} == True")
     CreateFolder(Folder="${DataloaderFolder}",CreateParentFolders="True",IfFolderExists="Ignore")
     # 'DateTime' not needed since NovaStar has been updated.
-    # WriteTimeSeriesToDataStream(OutputFile="${DataloaderFolder}/${DataLoaderTime}-SRBC-CampbellCloud.csv",OutputFileHeaderFile="download-campbell-cloud-data-header-template.txt",OutputLineFormat="${ts:station.id},${ts:datastream.field},${ts:novastar.station.numid},${ts:novastar.datatype},${tsdata:datetime},${tsdata:datetime},${tsdata:value}",DateTimeFormat="%Y-%m-%dT%H:%M:%S")
-    WriteTimeSeriesToDataStream(OutputFile="${DataloaderFolder}/${DataLoaderTime}-SRBC-CampbellCloud.csv",OutputFileHeaderFile="${HeaderFile}",OutputLineFormat="${ts:station.id},${ts:datastream.field},${ts:novastar.station.numid},${ts:novastar.datatype},${tsdata:datetime},${tsdata:value}",DateTimeFormat="%Y-%m-%dT%H:%M:%S")
+    WriteTimeSeriesToDataStream(OutputFile="${DataloaderFolder}/${DataLoaderTime}-SRBC-CampbellCloud.csv",OutputFileHeaderFile="${HeaderTempFile}",OutputLineFormat="${ts:station.id},${ts:datastream.field},${ts:novastar.station.numid},${ts:novastar.datatype},${tsdata:datetime},${tsdata:value}",DateTimeFormat="%Y-%m-%dT%H:%M:%S")
 EndIf(Name="If_Create_Dataloader_File")
 #===============================================================================
-# Cleanup.
+# Cleanup:
+# - remove files with date in the filename so that they do not accumulate on the system
 #===============================================================================
-# Remove the temporary files so that they do not waste disk space.
-RemoveFile(InputFile="${MissingTimeSeriesFile}",IfNotFound="Ignore")
-RemoveFile(InputFile="${HeaderTempFile}",IfNotFound="Ignore")
+# RemoveFile(InputFile="${ProblemsFile}",IfNotFound="Ignore")
+# RemoveFile(InputFile="${HeaderTempFile}",IfNotFound="Ignore")
