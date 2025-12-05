@@ -20,20 +20,24 @@ TSTool and Plugin Version Compatibility
 
 | **Plugin Version** | **Required TSTool Version** | **Comments** |
 | -- | -- | -- |
-| 1.0.2 | >= 15.0.0 | Maintenance release to improve error handling when no data are available for a time series. |
-| 1.0.1 | >= 15.0.0 | Maintenance release to clean up issues for the initial production release. |
-| 1.0.0 | >= 15.0.0 | Initial release. |
+| 1.0.0+ | >= 15.0.0 | Initial release. |
 
 ## Release Note Details ##
 
-Release notes for specific versions are listed below,
-with repository issue number.
+Release notes for specific versions are listed below, with repository issue number.
 
+*   [Version 1.0.3](#version-103)
 *   [Version 1.0.2](#version-102)
 *   [Version 1.0.1](#version-101)
 *   [Version 1.0.0](#version-100)
 
 ----------
+
+## Version 1.0.3 ##
+
+**Maintenance release to improve plugin troubleshooting.**
+
+*   ![change](change.png) Add the plugin jar file location to ***View / Datastores*** to help with troubleshooting.
 
 ## Version 1.0.2 ##
 

@@ -200,6 +200,22 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
         this.pluginProperties.put("Description", "Plugin to integrate TSTool with Campbell Cloud web services.");
         this.pluginProperties.put("Author", "Open Water Foundation, https://openwaterfoundation.org");
         this.pluginProperties.put("Version", PluginMeta.VERSION);
+        // Set the location of the Jar file, which is useful to confirm what was loaded.
+        try {
+        	this.pluginProperties.put("JarFile",
+        		this.getClass()
+                .getProtectionDomain()
+                .getCodeSource()
+                .getLocation()
+                .toURI()
+                .getPath() );
+        }
+        catch ( Exception e ) {
+        	// Backup in case the above does not work.
+            String classFile = this.getName().replace('.', '/') + ".class";
+            String resource = this.getClass().getClassLoader().getResource(classFile).toString();
+        	this.pluginProperties.put("JarFile",resource);
+        }
 
         // Create the authentication token that will be used for the session.
         createAuthenticationToken ();
