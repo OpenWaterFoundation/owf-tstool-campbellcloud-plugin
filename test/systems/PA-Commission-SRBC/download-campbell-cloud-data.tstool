@@ -68,7 +68,7 @@ RemoveFile(InputFile="${MissingTimeSeriesFile}",IfNotFound="Ignore")
 # - 'InputEnd' = rounded to 5 minutes in the future
 # - 'InputStart' = 'InputEnd' minus 3 hours (can adjust based on production system behavior)
 #                  Use longer than 3 hours during startup to test while stations are offline for transport.
-SetInputPeriod(InputStart="CurrentToSecond.Round(5Min).RoundDirection(>) - 7Day",InputEnd="CurrentToSecond.Round(5Min).RoundDirection(>)")
+SetInputPeriod(InputStart="CurrentToSecond.Round(5Min).RoundDirection(>) - 3Hour",InputEnd="CurrentToSecond.Round(5Min).RoundDirection(>)")
 #
 # Set properties based on whether RunMode is Development or Production:
 # - 'DataloaderFolder' = where to creat the output file from Campbell Cloud data download
