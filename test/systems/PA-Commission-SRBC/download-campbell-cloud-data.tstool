@@ -1,4 +1,7 @@
 #===============================================================================
+# Workflow to download SBRC data from Campbell Cloud for NovaStar dataloader:
+# - see more detailed comments below
+#===============================================================================
 # Initial setup to define the main output folders and log file:
 # - handle Linux and Windows for testing and production environments
 # - see the next section for an explanation of the workflow
@@ -35,10 +38,15 @@ StartLog(LogFile="${LogFile}")
 # - the different Campbell Cloud stations report data at different intervals
 #   (e.g., RangeVUE is less frequent regular reports if no change in data)
 #
-#@version 1.0.3
-#@versionDate 2025-12-03
+#@version 1.0.4
+#@versionDate 2025-12-22
 #
 # History:
+# 1.0.4, 2025-12-22 - Make sure that all data are provided in the NSRawValue column
+#                     so that calibrations are applied forward.
+#                   - If a units conversiosn is needed, it must be defined in NovaStar.
+#                   - Remove the explanded header file from the results after processing to save disk space.
+#                   - Add a Debug boolean that can be used for troubleshooting.
 # 1.0.3, 2025-12-03 - Add more error handling for more possible cases.
 #                   - Generalize a problems file to insert in the output (concept can also work for other workflows).
 # 1.0.2, 2025-11-29 - Remove DateTime column since no longer needed.
@@ -52,11 +60,13 @@ StartLog(LogFile="${LogFile}")
 # Controlling properties:
 # - 'CurrentTime' = current date/time for logging
 # - 'DataLoaderTime' = current date/time for data loader CSV file name
+# - 'Debug' = set to True to use for troubleshooting
 # - 'DoCreateDataloaderFile' = true if output file should be created for the NovaStar dataloader
 # - 'DoCreateExcelTSCatalog' = set to true to output an Excel time series catalog, used to help with system setup
 # - 'ProblemCount' = increment to indicate that the problems file has messages
 SetProperty(PropertyName="CurrentTime",PropertyType="DateTime",PropertyValue="CurrentToSecond")
 FormatDateTimeProperty(PropertyName="DataLoaderTime",DateTimePropertyName="CurrentTime",Format="%Y%m%d%H%M")
+SetProperty(PropertyName="Debug",PropertyType="Boolean",PropertyValue="False")
 SetProperty(PropertyName="DoCreateDataloaderFile",PropertyType="Boolean",PropertyValue="True")
 SetProperty(PropertyName="DoCreateExcelTSCatalog",PropertyType="Boolean",PropertyValue="False")
 SetProperty(PropertyName="ProblemCount",PropertyType="Integer",PropertyValue="0")
@@ -74,7 +84,7 @@ SetInputPeriod(InputStart="CurrentToSecond.Round(5Min).RoundDirection(>) - 3Hour
 # - 'DataloaderFolder' = where to creat the output file from Campbell Cloud data download
 # - 'OutputFolder' = where to create other local output files (not log and not dataloader files)
 # - 'ProblemsFile' = file for specific problems, which will be inserted into the header template to replace INSERT_PROBLEMS_HERE
-SetProperty(PropertyName="DataloaderFolder",PropertyType="String",PropertyValue="/usr/ns/dataloader")
+SetProperty(PropertyName="DataloaderFolder",PropertyType="String",PropertyValue="/var/lib/novastar5/dataloader/data")
 SetProperty(PropertyName="OutputFolder",PropertyType="String",PropertyValue="results")
 SetProperty(PropertyName="ProblemsFile",PropertyType="String",PropertyValue="${OutputFolder}/${DataLoaderTime}-SRBC-CampbellCloud-problems.txt")
 If(Name="If_Dataloader_Linux",Condition="${LinuxOS} == False")
@@ -281,6 +291,9 @@ EndIf(Name="If_Create_Dataloader_File")
 #===============================================================================
 # Cleanup:
 # - remove files with date in the filename so that they do not accumulate on the system
+# - set the Debug property to True at the start to troubleshoot
 #===============================================================================
-# RemoveFile(InputFile="${ProblemsFile}",IfNotFound="Ignore")
-# RemoveFile(InputFile="${HeaderTempFile}",IfNotFound="Ignore")
+If(Name="If_Debug_Cleanup",Condition="${Debug} == False")
+    RemoveFile(InputFile="${ProblemsFile}",IfNotFound="Ignore")
+    RemoveFile(InputFile="${HeaderTempFile}",IfNotFound="Ignore")
+EndIf(Name="If_Debug_Cleanup")

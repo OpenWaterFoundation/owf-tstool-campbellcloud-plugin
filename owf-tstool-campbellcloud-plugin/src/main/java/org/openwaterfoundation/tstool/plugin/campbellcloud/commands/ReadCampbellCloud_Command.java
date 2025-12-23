@@ -22,7 +22,6 @@ NoticeEnd */
 
 package org.openwaterfoundation.tstool.plugin.campbellcloud.commands;
 
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -213,10 +212,10 @@ throws InvalidCommandParameterException {
 	}
 
 	// Can only have one of IrregularInterval, Read24HourAsDay, or ReadDayAs24Hour.
-	int paramCount = 0;
+	//int paramCount = 0;
 	if ( (IrregularInterval != null) && !IrregularInterval.equals("") ) {
-		++paramCount;
-		if ( IrregularInterval.indexOf("${") < 0 ) {
+		//++paramCount;
+		if ( IrregularInterval.indexOf("${") < 0 ) { // } so editor matches.
 			try {
 				TimeInterval.parseInterval(IrregularInterval);
 			}
@@ -265,6 +264,14 @@ throws InvalidCommandParameterException {
                    message, "Specify one of IrregularInterval, Read24HourAsDay=True, or ReadDayAs24Hour=True."));
 	}
 	*/
+
+	if ( (Timeout != null) && !Timeout.isEmpty() && !StringUtil.isInteger(Timeout) ) {
+        message = "The Timeout parameter value is invalid.";
+		warning += "\n" + message;
+           status.addToLog ( CommandPhaseType.INITIALIZATION,
+               new CommandLogRecord(CommandStatusType.FAILURE,
+                   message, "Specify as an integer." ) );
+	}
 
 	if ( (Debug != null) && !Debug.equals("") &&
 		!Debug.equalsIgnoreCase(_False) && !Debug.equalsIgnoreCase(_True) ) {
