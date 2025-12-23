@@ -39,7 +39,7 @@ if [ ${runGUI} = "true" ]; then
 else
   # Run TSTool in batch mode:
   # - set the timeout to be shorter than the expected scheduler interval (5 minutes) to avoid multiple processes running at the same time
-  timeout 250 ${tstoolScript} --nodiscovery --headless -- ${debug} --nomaingui --disable-datastores=* --enable-datastores=nsdataws-nscloud,CampbellCloud-SRBC --commands ${scriptFolder}/download-campbell-cloud-data.tstool
+  timeout 250 ${tstoolScript} --headless -- ${debug} --nodiscovery --nomaingui --disable-datastores=* --enable-datastores=nsdataws-nscloud,CampbellCloud-SRBC --commands ${scriptFolder}/download-campbell-cloud-data.tstool
 fi
 tstoolExitStatus=$?
 # Get the start time in seconds:

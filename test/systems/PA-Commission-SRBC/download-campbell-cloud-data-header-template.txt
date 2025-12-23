@@ -9,11 +9,11 @@
 # Problems:
 INSERT_PROBLEMS_HERE
 #
-#    SourceLocId = CC station ID
+#    SourceLocId = CC station ID (see NovaStar station remote tag name)
 # SourceDataType = CC datastream field
 #        NSLocId = NovaStar stationNumId
-#     NSDataType = NovaStar point type SHEF parameter code
-#     ReportTime = report time
-#  NSScaledValue = NovaStar scaled value to load (see NovaStar point type for units)
+#     NSDataType = NovaStar point type SHEF parameter code (2-character SHEF physical element)
+#     ReportTime = report time (see @Timezone)
+#     NSRawValue = NovaStar raw value to load (see NovaStar calibration and point type for units)
 #
-SourceLocId,SourceDataType,NSLocId,NSDataType,ReportTime,NSScaledValue
+SourceLocId,SourceDataType,NSLocId,NSDataType,ReportTime,NSRawValue
