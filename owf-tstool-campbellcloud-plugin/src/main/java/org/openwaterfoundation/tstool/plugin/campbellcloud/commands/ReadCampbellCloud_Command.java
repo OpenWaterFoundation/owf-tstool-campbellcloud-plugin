@@ -139,9 +139,7 @@ throws InvalidCommandParameterException {
     String InputStart = parameters.getValue ( "InputStart" );
     String InputEnd = parameters.getValue ( "InputEnd" );
     String ReadData = parameters.getValue ( "ReadData" );
-    String IrregularInterval = parameters.getValue ( "IrregularInterval" );
-    //String Read24HourAsDay = parameters.getValue ( "Read24HourAsDay" );
-    //String ReadDayAs24Hour = parameters.getValue ( "ReadDayAs24Hour" );
+    String TimePrecision = parameters.getValue ( "TimePrecision" );
     String Timeout = parameters.getValue ( "Timeout" );
     String Debug = parameters.getValue ( "Debug" );
 
@@ -211,59 +209,21 @@ throws InvalidCommandParameterException {
 		}
 	}
 
-	// Can only have one of IrregularInterval, Read24HourAsDay, or ReadDayAs24Hour.
-	//int paramCount = 0;
-	if ( (IrregularInterval != null) && !IrregularInterval.equals("") ) {
+	if ( (TimePrecision != null) && !TimePrecision.equals("") ) {
 		//++paramCount;
-		if ( IrregularInterval.indexOf("${") < 0 ) { // } so editor matches.
+		if ( TimePrecision.indexOf("${") < 0 ) { // } so editor matches.
 			try {
-				TimeInterval.parseInterval(IrregularInterval);
+				TimeInterval.parseInterval(TimePrecision);
 			}
 			catch ( Exception e ) {
-				message = "Invalid irregular interval (" + IrregularInterval + ").";
+				message = "Invalid time precision (" + TimePrecision + ").";
 				warning += "\n" + message;
 				status.addToLog ( CommandPhaseType.INITIALIZATION,
 					new CommandLogRecord(CommandStatusType.FAILURE,
-						message, "Select an irregular interval from the choices.") );
+						message, "Select a time precision the choices.") );
 			}
 		}
 	}
-
-	/*
-	if ( (Read24HourAsDay != null) && !Read24HourAsDay.equals("") ) {
-		++paramCount;
-		if ( !Read24HourAsDay.equalsIgnoreCase(_False) && !Read24HourAsDay.equalsIgnoreCase(_True) ) {
-			message = "The Read24HourAsDay parameter value is invalid.";
-			warning += "\n" + message;
-			status.addToLog ( CommandPhaseType.INITIALIZATION,
-                new CommandLogRecord(CommandStatusType.FAILURE,
-                    message, "Specify " + _False + " (default) or " + _True ) );
-		}
-	}
-	*/
-
-	/*
-	if ( (ReadDayAs24Hour != null) && !ReadDayAs24Hour.equals("") ) {
-		++paramCount;
-		if ( ReadDayAs24Hour.equalsIgnoreCase(_False) && !ReadDayAs24Hour.equalsIgnoreCase(_True) ) {
-			message = "The ReadDayAs24Hour parameter value is invalid.";
-			warning += "\n" + message;
-			status.addToLog ( CommandPhaseType.INITIALIZATION,
-                new CommandLogRecord(CommandStatusType.FAILURE,
-                    message, "Specify " + _False + " (default) or " + _True ) );
-		}
-	}
-	*/
-
-	/*
-	if ( paramCount > 1 ) {
-        message = "Can only specify one of IrregularInterval, Read24HourAsDay, and ReadDayAs24Hour parameters.";
-		warning += "\n" + message;
-           status.addToLog ( CommandPhaseType.INITIALIZATION,
-               new CommandLogRecord(CommandStatusType.FAILURE,
-                   message, "Specify one of IrregularInterval, Read24HourAsDay=True, or ReadDayAs24Hour=True."));
-	}
-	*/
 
 	if ( (Timeout != null) && !Timeout.isEmpty() && !StringUtil.isInteger(Timeout) ) {
         message = "The Timeout parameter value is invalid.";
@@ -403,10 +363,9 @@ throws InvalidCommandParameterException {
     validList.add ( "InputStart" );
     validList.add ( "InputEnd" );
     validList.add ( "ReadData" );
-    validList.add ( "IrregularInterval" );
-    //validList.add ( "Read24HourAsDay" );
-    //validList.add ( "ReadDayAs24Hour" );
+    validList.add ( "TimePrecision" );
     validList.add ( "Timezone" );
+    validList.add ( "Units" );
     validList.add ( "Timeout" );
     validList.add ( "Debug" );
     warning = TSCommandProcessorUtil.validateParameterNames ( validList, this, warning );
@@ -424,39 +383,33 @@ throws InvalidCommandParameterException {
 /**
  * Create properties for reading time series.
  * @param debug whether to run web service queries in debug
- * @param irregularInterval irregular interval to use for output time series
- * @param read24HourAsDay whether to read 24Hour time series as day interval
- * @param readDayAs24Hour whether to read daily time series as 24Hour interval
  * @param timeout timeout in seconds
+ * @param timePrecision time precision to use for output time series
  * @param timezone time zone to be used for response, important for interval calculations
  * @param tsProgressListener object that will listen for progress reading a time series
+ * @param units data units to set in the time series
  */
 private HashMap<String,Object> createReadProperties (
 	boolean debug,
-	String irregularInterval,
-	//boolean read24HourAsDay,
-	//boolean readDayAs24Hour,
 	int timeout,
+	String timePrecision,
 	String timezone,
-	TSProgressListener tsProgressListener ) {
+	TSProgressListener tsProgressListener,
+	String units
+	) {
 	HashMap<String,Object> readProperties = new HashMap<>();
 	if ( (timezone != null) && !timezone.isEmpty() ) {
 		readProperties.put("TimeZone", timezone );
 	}
+	if ( (units != null) && !units.isEmpty() ) {
+		readProperties.put("Units", units );
+	}
 	if ( debug ) {
 		readProperties.put("Debug", Boolean.TRUE );
 	}
-	if ( (irregularInterval != null) && !irregularInterval.isEmpty() ) {
-		readProperties.put("IrregularInterval", irregularInterval );
+	if ( (timePrecision != null) && !timePrecision.isEmpty() ) {
+		readProperties.put("TimePrecision", timePrecision );
 	}
-	/*
-	if ( read24HourAsDay ) {
-		readProperties.put("Read24HourAsDay", "True" );
-	}
-	if ( readDayAs24Hour ) {
-		readProperties.put("ReadDayAs24Hour", "True" );
-	}
-	*/
 	if ( timeout > 0 ) {
 		readProperties.put("Timeout", Integer.valueOf(timeout) );
 	}
@@ -779,26 +732,14 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 		// OK to use the same variable as discovery boolean.
 		readData = false;
 	}
-    String IrregularInterval = parameters.getValue("IrregularInterval");
-	IrregularInterval = TSCommandProcessorUtil.expandParameterValue(getCommandProcessor(), this, IrregularInterval);
+    String TimePrecision = parameters.getValue("TimePrecision");
+	TimePrecision = TSCommandProcessorUtil.expandParameterValue(getCommandProcessor(), this, TimePrecision);
 
-	/*
-    String Read24HourAsDay = parameters.getValue("Read24HourAsDay");
-    boolean read24HourAsDay = false;
-    if ( (Read24HourAsDay != null) && Read24HourAsDay.equalsIgnoreCase(_True) ) {
-    	read24HourAsDay = true;
-    }
-    String ReadDayAs24Hour = parameters.getValue("ReadDayAs24Hour");
-    boolean readDayAs24Hour = false;
-    if ( (ReadDayAs24Hour != null) && ReadDayAs24Hour.equalsIgnoreCase(_True) ) {
-    	readDayAs24Hour = true;
-    }
-    */
-	
 	String Timezone = parameters.getValue ("Timezone" );
 	if ( (Timezone == null) || Timezone.isEmpty() ) {
 		Timezone = "UTC";
 	}
+	String Units = parameters.getValue ("Units" );
 	String Timeout = parameters.getValue ("Timeout" );
 	int timeoutSeconds = 5*60; // Default = 5 minutes.
 	if ( commandPhase == CommandPhaseType.RUN ) {
@@ -951,13 +892,13 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 						TSProgressListener tsProgressListener = this;
 						HashMap<String,Object> readProperties = createReadProperties (
 							debug,
-							IrregularInterval,
-							//read24HourAsDay,
-							//readDayAs24Hour,
 							timeoutSeconds,
+							TimePrecision,
 							Timezone,
 							// Want to chain progress in the single time series to TSTool.
-							tsProgressListener );
+							tsProgressListener,
+							Units
+							);
 						// Try to read the time series:
 						// - if in discover mode, 'readData' will be false
 						Message.printStatus ( 2, routine, "Reading Campbell Cloud web service time series \"" + TSIDForRequest + "\"" );
@@ -1163,12 +1104,11 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 							TSProgressListener tsProgressListener = null;
 							HashMap<String,Object> readProperties = createReadProperties (
 								debug,
-								IrregularInterval,
-								//read24HourAsDay,
-								//readDayAs24Hour,
 								timeoutSeconds,
+								TimePrecision,
 								Timezone,
-								tsProgressListener );
+								tsProgressListener,
+								Units );
 							for ( int i = 0; i < size; i++ ) {
 								// Check to see if reading time series should be canceled because the command has been canceled.
 								if ( tsprocessor.getCancelProcessingRequested() ) {
@@ -1454,10 +1394,9 @@ public String toString ( PropList parameters ) {
 		"InputStart",
 		"InputEnd",
 		"ReadData",
-		"IrregularInterval",
-		//"Read24HourAsDay",
-		//"ReadDayAs24Hour",
+		"TimePrecision",
     	"Timezone",
+    	"Units",
     	"Timeout",
 		"Debug",
 	};

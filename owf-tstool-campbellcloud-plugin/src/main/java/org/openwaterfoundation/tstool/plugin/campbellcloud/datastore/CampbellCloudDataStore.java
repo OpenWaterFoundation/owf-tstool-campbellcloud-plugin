@@ -1576,8 +1576,10 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
      * <li> "Debug" - Boolean, if true, turn on debug for the query</li>
      * <li> "IrregularInterval" - irregular interval (e.g., "IrregHour" to use instead of TSID interval,
      *      where the TSID intervals corresponds to the web services.</li>
+	 * <li> "ProgressListener" - TSProgressListener, to provide progress while reading time series</li>
      * <li> "Timeout" - timeout (Integer seconds), for web service requests</li>
      * <li> "Timezone" - timezone such as "America/Denver" to convert from Campbell Cloud UTC</li>
+     * <li> "Units" - data units to assign to the time series (because Campbell Cloud does not assign)</li>
      * </ul>
      * @return the time series or null if not read
      */
@@ -1598,25 +1600,30 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     		// Create an empty hashmap if necessary to avoid checking for null below.
     		readProperties = new HashMap<>();
     	}
+    	// 'Debug' - not currently used.
+    	// 'IrregularInterval' - not currently used
     	String IrregularInterval = null;
     	TimeInterval irregularInterval = null;
     	Object object = readProperties.get("IrregularInterval");
-    	if ( object != null ) {
+    	if ( (object != null) && (object instanceof String) ) {
     		IrregularInterval = (String)object;
     		irregularInterval = TimeInterval.parseInterval(IrregularInterval);
     	}
-    	// Allow the timeout to be set.
+    	// 'ProgressListener' - not currenlty used
+    	// 'Timeout':
+    	// - allow the timeout to be set
     	object = readProperties.get("Timeout");
     	Integer timeoutSeconds = null;
-    	if ( object != null ) {
+    	if ( (object != null) && (object instanceof Integer) ) {
     		timeoutSeconds = (Integer)object;
     	}
-    	// Default output time zone UTC:
-    	// - will be overridden below if
+    	// 'Timezone':
+    	// - default output time zone UTC
+    	// - will be overridden below if provided
     	ZoneId outputZoneId = ZoneId.of("UTC");
     	String timezone = outputZoneId.toString();
     	object = readProperties.get("Timezone");
-    	if ( object != null ) {
+    	if ( (object != null) && (object instanceof String) ) {
     		// Have a time zone to use for output.
     		timezone = (String)object;
     		outputZoneId = ZoneId.of(timezone);
@@ -1628,15 +1635,28 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	else {
     		Message.printStatus(2, routine, "  Campbell Cloud UTC data will be converted to \"" + timezone + "\".");
     	}
+    	// 'Units':
+    	// - to set in the time series because Campbell Cloud does not provide
+    	String units = null;
+    	object = readProperties.get("Units");
+    	if ( (object != null) && (object instanceof String) ) {
+    		units = (String)object;
+    	}
 
 		// Determine the period to read:
 		// - 'readStartRequested' = as requested, defaulting to computer time zone if necessary
 		// - 'readEndRequested' = as requested, defaulting to computer time zone if necessary
     	Message.printStatus(2, routine, "Reading requested period readStart=" + readStart + " to readEnd=" + readEnd);
 		DateTime readStartRequested = determineReadStartRequested ( readStart );
+		if ( irregularInterval != null ) {
+			readStartRequested.setPrecision(irregularInterval.getIrregularIntervalPrecision());
+		}
 		DateTime readStartUTC = determineReadStartUTC ( readStartRequested );
 
 		DateTime readEndRequested = determineReadEndRequested ( readEnd );
+		if ( irregularInterval != null ) {
+			readEndRequested.setPrecision(irregularInterval.getIrregularIntervalPrecision());
+		}
 		DateTime readEndUTC = determineReadEndUTC ( readEndRequested );
 
     	TS ts = null;
@@ -1683,11 +1703,13 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	// - from this point forward the "out" variables are used,
     	//   in case IrregularInterval, Read24HourAsDay, or ReadDayAs24Hour properties were specified
 
+   		/*
    		if ( (irregularInterval != null) && !IrregularInterval.isEmpty() ) {
    			// Reset the irregular interval if requested.
    			tsidentReq.setInputName(IrregularInterval);
    			tsidReq = tsidentReq.toString();
    		}
+   		*/
     	ts = TSUtil.newTimeSeries(tsidReq, true);
 
     	// Set the time series properties.
@@ -1726,8 +1748,16 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     	// Set standard properties:
     	// - use station name and datastream field for the description because datastream does not have a name or description
 		ts.setDescription(tscatalog.getStationName() + " - " + tscatalog.getDatastreamField());
-		ts.setDataUnits("");
-		ts.setDataUnitsOriginal("");
+		if ( (units != null) && !units.isEmpty() ) {
+			// Units were provided so use them.
+			ts.setDataUnits(units);
+			ts.setDataUnitsOriginal(units);
+		}
+		else {
+			// Default is no units because cannot be determined from Campbell CLoud.
+			ts.setDataUnits("");
+			ts.setDataUnitsOriginal("");
+		}
 		ts.setMissing(Double.NaN);
 
 		// Set the time series properties:
@@ -1748,9 +1778,15 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     			Message.printStatus(2, routine, "Read " + dataList.size() + " data points for datastream \""
     				+ datastreamId + "\" for readStartUTC=" + readStartUTC + " to readEndUTC=" + readEndUTC );
     			DateTime readStartOutput = dataList.get(0).getTimestampAsDateTime(outputZoneId);
+    			if ( irregularInterval != null ) {
+			  			readStartOutput.setPrecision(irregularInterval.getIrregularIntervalPrecision());
+		  			}
     			ts.setDate1(readStartOutput);
     			ts.setDate1Original(ts.getDate1());
     			DateTime readEndOutput = dataList.get(dataList.size() - 1).getTimestampAsDateTime(outputZoneId);
+    			if ( irregularInterval != null ) {
+		  			readEndOutput.setPrecision(irregularInterval.getIrregularIntervalPrecision());
+	  			}
     			ts.setDate2(readEndOutput);
     			ts.setDate2Original(ts.getDate2());
 
@@ -1765,9 +1801,12 @@ public class CampbellCloudDataStore extends AbstractWebServiceDataStore implemen
     				Double value = data.getValue();
     				if ( (dt != null) && (value != null) ) {
     					// Nulls may occur if the API changes?
+    					if ( irregularInterval != null ) {
+		  					dt.setPrecision(irregularInterval.getIrregularIntervalPrecision());
+    					}
     					ts.setDataValue(dt, data.getValue());
     				}
-    			}
+	  			}
     		}
     		else {
     			Message.printStatus(2, routine, "No datapoints read for datastream \""

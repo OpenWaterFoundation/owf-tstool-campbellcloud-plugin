@@ -28,11 +28,16 @@ See also the
 [TSID for Campbell Cloud](../TSID/TSID.md) time series identifier command,
 which reads time series for a single time series.
 
-The ***Data type***, ***Data interval***, and ***Where*** command parameters and input fields
+The ***Data type***, ***Data interval***, and ***Where*** input fields
 are similar to those in the main TSTool interface.
 However, whereas the main TSTool interface first requires a query to find the
 matching time series list and interactive select to copy specific time series identifiers into the ***Commands*** area,
 the `ReadCampbellCloud` command automates reading the time series list and the corresponding data for the time series.
+
+Because Campbell Cloud stores timestamped sensor data that typically have irregular times (not even seconds or minutes),
+TSTool uses an interval of `IrregSecond` for all data,
+with a default time precision of `MilliSecond` for the start and end, and data timestamps.
+Additional functionality may be enabled in the future as Campbell Cloud data are used operationally. 
 
 Using the `ReadCampbellCloud` command can greatly shorten command files and simplify command logic
 when processing many time series.
@@ -52,13 +57,6 @@ When matching multiple time series,
 it is also possible to create a table of time series metadata rather than reading the time series
 (see the `ReadTimeSeries=False` and `TimeSeriesCatalogTableID` command parameters).
 
-Although TSTool can represent time series as regular interval,
-where the timestamp is the interval-ending date/time (e.g., `15Minute`, `1Hour`),
-Campbell Cloud time series are currently always treated as irregular interval with the observation at the timestamp.
-If interval values are stored, TSTool treats the timestamp as interval ending.
-Additional functionality may be enabled in the future as sensor variables are better understood.
-Consuming software can treat the time series as regular interval if appropriate.
-        
 ## Command Editor ##
 
 The following dialog is used to edit the command and illustrates the syntax for the command.
@@ -79,7 +77,7 @@ Alternatively, the `TSID` parameter can be specified.
 </p>**
 
 **<p style="text-align: center;">
-`ReadCampbellCloud` Command Editor to Read a Single Time Series (<a href="../ReadCampbellCloud-single.png">see full-size image)</a>
+`ReadCampbellCloud` Command Editor to Read a Single Time Series (<a href="../ReadCampbellCloud-single.png">see full-size image</a>)
 </p>**
 
 ### Match 1+ Time Series ###
@@ -93,7 +91,7 @@ or all time series for a location.
 </p>**
 
 **<p style="text-align: center;">
-`ReadCampbellCloud` Command Editor to Read Multiple Time Series (<a href="../ReadCampbellCloud-multiple.png">see full-size image)</a>
+`ReadCampbellCloud` Command Editor to Read Multiple Time Series (<a href="../ReadCampbellCloud-multiple.png">see full-size image</a>)
 </p>**
 
 ## Command Syntax ##
@@ -119,11 +117,12 @@ Command Parameters
 | | `ReadTimeSeries` | Indicate whether time series should be read: <ul><li>`False` - do not read time series (specify the `TimeSeriesCatalogTableID` parameter to output a time series metadata table).</li><li>`True` - read time series</li></ul> | `True` |
 | | `TimeSeriesCatalogTableID` | Output table for time series metadata. | |
 |All|`Alias`<br>|The alias to assign to the time series, as a literal string or using the special formatting characters listed by the command editor.  The alias is a short identifier used by other commands to locate time series for processing, as an alternative to the time series identifier (`TSID`).|None – alias not assigned.|
-||`InputStart`|Start of the period to query, specified as a date/time with a precision that matches the requested data interval.  If not specified, the time zone will default to the computer's time zone. |Read most recent 30 days of data.|
-||`InputEnd`|End of the period to query, specified as a date/time with a precision that matches the requested data interval.  If not specified, the time zone will default to the computer's time zone. |Read most recent 30 days of data. |
+||`InputStart`|Start of the period to query, specified as a date/time with a precision of `MilliSecond` unless the `TimePrecision` parameter is specified.  If not specified, the time zone will default to the computer's time zone. |Read most recent 30 days of data.|
+||`InputEnd`|End of the period to query, specified as a date/time with a precision `MilliSecond` unless the `TimePrecision` parameter is specified.  If not specified, the time zone will default to the computer's time zone. |Read most recent 30 days of data. |
 || `ReadData` | Indicate whether time series data should be read: <ul><li>`False` - only read time series metadata</li><li>`True` - read time series metadata and data</ul></ul> | `True` |
-||`IrregularInterval` | Used with regular interval time series in cases where an interval is not yet supported (e.g., month and year) or there are data complexities, such as daily interval time series that do not align with midnight.  The resulting time series will have irregular interval (spacing) and date/time precision will match the interval (e.g., `IrregHour` will use hourly time precision). The parameter can have one of the following values.  High precision time is typically only used in special cases. <ul><li>`IrregYear`</li><li>`IrregMonth`</li><li>`IrregDay`</li><li>`IrregHour`</li><li>`IrregMinute`</li><li>`IrregSecond`</li><li>`IrregHSecond`</li><li>`IrregMilliSecond`</li><li>`IrregMicroSecond`</li><li>`IrregNanoSecond`</li></ul>| `IrregSecond` |
-||`Timezone`| The time zone for output.  The Campbell Cloud UTC times will be converted to the requested time zone.  Specify the time zone using a name from the ["List of tz database time zones" on Wikipedia](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (e.g., `America/Denver`). See the [Campbell Cloud Datastore / Timezone Handling](../../datastore-ref/CampbellCloud/CampbellCloud.md#timezone-handling) documentation for more information. | `UTC`. |
+|| `TimePrecision` | Campbell Cloud measurements have report times with sub-second precision.  Other data management systems may not store data to the same time precision.  This parameter can be used to control the CampbellCloud time precision to ensure that the format is appropriate for data use.  Specify as:<ul><li>`NanoSecond`</li><li>`MicroSecond`</li><li>`MilliSecond`</li><li>`HSecond`</li><li>`Second`</li>| `MilliSecond` |
+|| `Units` | The data units to assign to the time series.  Campbell Cloud does not provide data units in the web services API so the units must be determined from sensor documentation. | No units are assigned. |
+||`Timezone`| The time zone for output.  The Campbell Cloud UTC times will be converted to the requested time zone.  Specify the time zone using a name from the ["List of tz database time zones" on Wikipedia](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (e.g., `America/Denver` or `US/Eastern`). See the [Campbell Cloud Datastore / Timezone Handling](../../datastore-ref/CampbellCloud/CampbellCloud.md#timezone-handling) documentation for more information. | `UTC`. |
 ||`Timeout` | The number of seconds allowed for web service requests before timing out. | 300 (5 minutes). |
 ||`Debug`| Used for troubleshooting:  `False` or `True`. | `False` |
 
