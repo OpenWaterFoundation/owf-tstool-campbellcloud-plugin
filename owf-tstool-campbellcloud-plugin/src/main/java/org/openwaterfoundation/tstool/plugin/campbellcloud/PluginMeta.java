@@ -26,7 +26,7 @@ public class PluginMeta {
 	/**
 	 * Plugin version.
 	 */
-	public static final String VERSION = "1.0.3 (2025-12-05)";
+	public static final String VERSION = "1.0.4 (2026-01-04)";
 	
 	/**
 	 * Get the documentation root URL, used for command help.

@@ -26,12 +26,23 @@ TSTool and Plugin Version Compatibility
 
 Release notes for specific versions are listed below, with repository issue number.
 
+*   [Version 1.0.4](#version-104)
 *   [Version 1.0.3](#version-103)
 *   [Version 1.0.2](#version-102)
 *   [Version 1.0.1](#version-101)
 *   [Version 1.0.0](#version-100)
 
 ----------
+
+## Version 1.0.4 ##
+
+**Maintenance release to improve features for testing.**
+
+*   ![change](change.png) Update the [`ReadCampbellCloud`](../command-ref/ReadCampbellCloud/ReadCampbellCloud.md) command:
+    +   Change the `IrregularInterval` parameter to `TimePrecision`.
+        This allows aligning the data report times for comparison in tests.
+    +   Add the `Units` parameter to set the time series units,
+        which is needed because the Campbell Cloud API does not provide units.
 
 ## Version 1.0.3 ##
 

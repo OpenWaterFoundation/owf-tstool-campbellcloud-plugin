@@ -24,6 +24,7 @@ package org.openwaterfoundation.tstool.plugin.campbellcloud.commands;
 
 import java.awt.Color;
 import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -109,10 +110,9 @@ private TSFormatSpecifiersJPanel __Alias_JTextField = null;
 private JTextField __InputStart_JTextField;
 private JTextField __InputEnd_JTextField;
 private SimpleJComboBox __ReadData_JComboBox = null;
-private SimpleJComboBox __IrregularInterval_JComboBox = null;
-//private SimpleJComboBox __Read24HourAsDay_JComboBox = null;
-//private SimpleJComboBox __ReadDayAs24Hour_JComboBox = null;
+private SimpleJComboBox __TimePrecision_JComboBox = null;
 private SimpleJComboBox __Timezone_JComboBox;
+private JTextField __Units_JTextField;
 private JTextField __Timeout_JTextField;
 private SimpleJComboBox	__Debug_JComboBox;
 private JTextArea __command_JTextArea = null;
@@ -387,23 +387,17 @@ private void checkInput () {
 	if ( !ReadData.isEmpty() ) {
 		props.set ( "ReadData", ReadData );
 	}
-    String IrregularInterval = __IrregularInterval_JComboBox.getSelected();
-    if ( IrregularInterval.length() > 0 ) {
-        props.set ( "IrregularInterval", IrregularInterval );
+    String TimePrecision = __TimePrecision_JComboBox.getSelected();
+    if ( TimePrecision.length() > 0 ) {
+        props.set ( "TimePrecision", TimePrecision );
     }
-    /*
-    String Read24HourAsDay = __Read24HourAsDay_JComboBox.getSelected();
-    if ( Read24HourAsDay.length() > 0 ) {
-        props.set ( "Read24HourAsDay", Read24HourAsDay );
-    }
-    String ReadDayAs24Hour = __ReadDayAs24Hour_JComboBox.getSelected();
-    if ( ReadDayAs24Hour.length() > 0 ) {
-        props.set ( "ReadDayAs24Hour", ReadDayAs24Hour );
-    }
-    */
 	String Timezone = __Timezone_JComboBox.getSelected();
 	if ( Timezone.length() > 0 ) {
 		props.set ( "Timezone", Timezone );
+	}
+	String Units = __Units_JTextField.getText().trim();
+	if ( !Units.isEmpty() ) {
+		props.set ( "Units", Units );
 	}
 	String Timeout = __Timeout_JTextField.getText().trim();
 	if ( !Timeout.isEmpty() ) {
@@ -471,16 +465,12 @@ private void commitEdits () {
 	__command.setCommandParameter ( "InputEnd", InputEnd );
 	String ReadData = __ReadData_JComboBox.getSelected();
 	__command.setCommandParameter (	"ReadData", ReadData );
-	String IrregularInterval = __IrregularInterval_JComboBox.getSelected();
-	__command.setCommandParameter (	"IrregularInterval", IrregularInterval );
-	/*
-	String Read24HourAsDay = __Read24HourAsDay_JComboBox.getSelected();
-	__command.setCommandParameter (	"Read24HourAsDay", Read24HourAsDay );
-	String ReadDayAs24Hour = __ReadDayAs24Hour_JComboBox.getSelected();
-	__command.setCommandParameter (	"ReadDayAs24Hour", ReadDayAs24Hour );
-	*/
+	String TimePrecision = __TimePrecision_JComboBox.getSelected();
+	__command.setCommandParameter (	"TimePrecision", TimePrecision );
 	String Timezone = __Timezone_JComboBox.getSelected();
 	__command.setCommandParameter ( "Timezone", Timezone );
+	String Units = __Units_JTextField.getText().trim();
+	__command.setCommandParameter ( "Units", Units );
 	String Timeout = __Timeout_JTextField.getText().trim();
 	__command.setCommandParameter ( "Timeout", Timeout );
 	String Debug = __Debug_JComboBox.getSelected();
@@ -790,6 +780,10 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     JGUIUtil.addComponent(singleTS_JPanel, new JLabel ( "Data source:"),
         0, ++ySingle, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
     __DataSource_JTextField = new JTextField ( "CampbellCloud", 20 );
+    // Protect the size because sometimes can shrink to the minimum size.
+    Dimension d = __DataSource_JTextField.getPreferredSize();
+    __DataSource_JTextField.setMinimumSize(d);
+    __DataSource_JTextField.setMaximumSize(d);
     __DataSource_JTextField.setToolTipText("Data source to match, currently always 'CampbellCloud'");
     __DataSource_JTextField.setEditable(false);
     __DataSource_JTextField.addKeyListener ( this );
@@ -810,7 +804,7 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
 
     JGUIUtil.addComponent(singleTS_JPanel, new JLabel("TSID:"),
         0, ++ySingle, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
-    __TSID_JTextField = new JTextField(30);
+    __TSID_JTextField = new JTextField(40);
     __TSID_JTextField.setToolTipText("Time series identifier to request, can use ${Property}.");
     __TSID_JTextField.addKeyListener ( this );
     __TSID_JTextField.getDocument().addDocumentListener(this);
@@ -882,7 +876,7 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     __InputStart_JTextField.addKeyListener (this);
     JGUIUtil.addComponent(main_JPanel, __InputStart_JTextField,
         1, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - overrides the global input start (default=computer timezone)."),
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - overrides the global input start (default=last 30 days)."),
         3, y, 3, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST );
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Input end:"),
@@ -892,7 +886,7 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     __InputEnd_JTextField.addKeyListener (this);
     JGUIUtil.addComponent(main_JPanel, __InputEnd_JTextField,
         1, y, 6, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - overrides the global input end (default=computer timezone)."),
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - overrides the global input end (default=current time)."),
         3, y, 3, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST );
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Read data?:"),
@@ -912,57 +906,25 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
 		"Optional - read data values (default=" + __command._True + ")."),
 		3, y, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
 
-    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Irregular interval:"),
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Time precision:"),
 		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
-    List<String> irregInterval_List = new ArrayList<>( 3 );
-	irregInterval_List = TimeInterval.getTimeIntervalChoices(TimeInterval.UNKNOWN, TimeInterval.UNKNOWN, false, -1, true);
-	irregInterval_List.add(0,"");
-	__IrregularInterval_JComboBox = new SimpleJComboBox ( false );
-	__IrregularInterval_JComboBox.setToolTipText("Interval to use instead of web service IrrregSecond");
-	__IrregularInterval_JComboBox.setData ( irregInterval_List);
-	__IrregularInterval_JComboBox.select ( 0 );
-	__IrregularInterval_JComboBox.addActionListener ( this );
-    JGUIUtil.addComponent(main_JPanel, __IrregularInterval_JComboBox,
+    List<String> timePrecision_List = new ArrayList<>( 6 );
+	timePrecision_List.add("");
+	timePrecision_List.add("Second");
+	timePrecision_List.add("HSecond");
+	timePrecision_List.add("MilliSecond");
+	timePrecision_List.add("MicroSecond");
+	timePrecision_List.add("NanoSecond");
+	__TimePrecision_JComboBox = new SimpleJComboBox ( false );
+	__TimePrecision_JComboBox.setToolTipText("Precision for time associated with data values.");
+	__TimePrecision_JComboBox.setData(timePrecision_List);
+	__TimePrecision_JComboBox.select ( 0 );
+	__TimePrecision_JComboBox.addActionListener ( this );
+    JGUIUtil.addComponent(main_JPanel, __TimePrecision_JComboBox,
 		1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
     JGUIUtil.addComponent(main_JPanel, new JLabel (
-		"Optional - interval for irregular interval time series (default=IrregMilliSecond)."),
+		"Optional - precision for time (default=MilliSecond)."),
 		3, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-
-    /*
-    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Read 24Hour as 1Day:"),
-		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
-    List<String> read24Hour_List = new ArrayList<>( 3 );
-	read24Hour_List.add ( "" );
-	read24Hour_List.add ( __command._False );
-	read24Hour_List.add ( __command._True );
-	__Read24HourAsDay_JComboBox = new SimpleJComboBox ( false );
-	__Read24HourAsDay_JComboBox.setToolTipText("Whether to read 24Hour interval time series as 1Day interval");
-	__Read24HourAsDay_JComboBox.setData ( read24Hour_List);
-	__Read24HourAsDay_JComboBox.select ( 0 );
-	__Read24HourAsDay_JComboBox.addActionListener ( this );
-    JGUIUtil.addComponent(main_JPanel, __Read24HourAsDay_JComboBox,
-		1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-    JGUIUtil.addComponent(main_JPanel, new JLabel (
-		"Optional - read 24Hour as 1Day (default=" + __command._False + ")."),
-		3, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-
-    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Read day as 24Hour:"),
-		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
-    List<String> readDay_List = new ArrayList<>( 3 );
-	readDay_List.add ( "" );
-	readDay_List.add ( __command._False );
-	readDay_List.add ( __command._True );
-	__ReadDayAs24Hour_JComboBox = new SimpleJComboBox ( false );
-	__ReadDayAs24Hour_JComboBox.setToolTipText("Whether to read day interval time series as 24Hour interval");
-	__ReadDayAs24Hour_JComboBox.setData ( readDay_List);
-	__ReadDayAs24Hour_JComboBox.select ( 0 );
-	__ReadDayAs24Hour_JComboBox.addActionListener ( this );
-    JGUIUtil.addComponent(main_JPanel, __ReadDayAs24Hour_JComboBox,
-		1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-    JGUIUtil.addComponent(main_JPanel, new JLabel (
-		"Optional - read day as 24Hour  (default=" + __command._False + ")."),
-		3, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
-		*/
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Timezone:"),
         0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
@@ -986,6 +948,17 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
         1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - output timezone (default = system/station timezone)."),
         3, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Units:"),
+        0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
+    __Units_JTextField = new JTextField ( "", 20 );
+    __Units_JTextField.setToolTipText("Data units for the time series, needed because Campbell Cloud does not provide.");
+    __Units_JTextField.setToolTipText("Units for time series.");
+    __Units_JTextField.addKeyListener ( this );
+    JGUIUtil.addComponent(main_JPanel, __Units_JTextField,
+        1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.HORIZONTAL, GridBagConstraints.WEST);
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - data units for time series."),
+        3, y, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Timeout:"),
         0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
@@ -1017,6 +990,9 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Command:"),
 		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
 	__command_JTextArea = new JTextArea (4,50);
+    // Protect the size because sometimes can shrink to the minimum size.
+    d = __command_JTextArea.getPreferredSize();
+    __command_JTextArea.setMinimumSize(d);
 	__command_JTextArea.setLineWrap ( true );
 	__command_JTextArea.setWrapStyleWord ( true );
 	__command_JTextArea.setEditable ( false );
@@ -1043,16 +1019,16 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
 
 	setTitle ( "Edit " + __command.getCommandName() + " Command" );
 
-    // Because it is necessary to select the proper input filter during initialization (to transfer an old command's
-    // parameter values), the selected input filter may not be desirable for dialog sizing.  Therefore, manually set
-    // all panels to visible and then determine the preferred size as the maximum.  Then reselect the appropriate input
-    // filter before continuing.
+    // Because it is necessary to select the proper input filter during initialization (to transfer an old command's parameter values),
+	// the selected input filter may not be desirable for dialog sizing.
+	// Therefore, manually set all panels to visible and then determine the preferred size as the maximum.
+	// Then reselect the appropriate input filter before continuing.
     setAllFiltersVisible();
     // All filters are visible at this point so pack chooses good sizes.
     pack();
-    setPreferredSize(getSize()); // Will reflect all filters being visible
-    __multipleTS_JPanel.setPreferredSize(__multipleTS_JPanel.getSize()); // So initial height is maximum height
-    selectInputFilter( getDataStore()); // Now go back to the filter for the selected input type and intern
+    setPreferredSize(getSize()); // Will reflect all filters being visible.
+    __multipleTS_JPanel.setPreferredSize(__multipleTS_JPanel.getSize()); // So initial height is maximum height.
+    selectInputFilter( getDataStore()); // Now go back to the filter for the selected input type and intern.
     JGUIUtil.center( this );
     __ignoreEvents = false; // After initialization of components let events happen to dynamically cause cascade.
     // Now refresh once more.
@@ -1114,7 +1090,7 @@ private void initializeInputFilters_OneFilter ( JPanel parent_JPanel, int y, Cam
     int x = 0; // Position in layout manager, same for all since overlap.
     //int numVisibleChoices = -1; // For the combobox choices, -1 means size to data list size.
     try {
-        // Time series...
+        // Time series.
         CampbellCloud_TimeSeries_InputFilter_JPanel panel = new CampbellCloud_TimeSeries_InputFilter_JPanel ( dataStore, 5 );
         //panel.setName(dataStore.getName() + ".Station" );
         panel.setName(dataStore.getName() );
@@ -1341,10 +1317,9 @@ private void refresh () {
 	String InputStart = "";
 	String InputEnd = "";
 	String ReadData = "";
-	String IrregularInterval = "";
-	//String Read24HourAsDay = "";
-	//String ReadDayAs24Hour = "";
+	String TimePrecision = "";
 	String Timezone = "";
+	String Units = "";
 	String Timeout = "";
 	String Debug = "";
 	PropList props = null;
@@ -1367,10 +1342,9 @@ private void refresh () {
 		InputStart = props.getValue ( "InputStart" );
 		InputEnd = props.getValue ( "InputEnd" );
 		ReadData = props.getValue ( "ReadData" );
-		IrregularInterval = props.getValue ( "IrregularInterval" );
-		//Read24HourAsDay = props.getValue ( "Read24HourAsDay" );
-		//ReadDayAs24Hour = props.getValue ( "ReadDayAs24Hour" );
+		TimePrecision = props.getValue ( "TimePrecision" );
 		Timezone = props.getValue ( "Timezone" );
+		Units = props.getValue ( "Units" );
 		Timeout = props.getValue ( "Timeout" );
 		Debug = props.getValue ( "Debug" );
 
@@ -1410,7 +1384,7 @@ private void refresh () {
         // Then set to the value from the command.
         int [] index = new int[1];
         //Message.printStatus(2,routine,"Checking to see if DataType=\"" + DataType + "\" is a choice.");
-        //if ( JGUIUtil.isSimpleJComboBoxItem(__DataType_JComboBox, DataType, JGUIUtil.CHECK_SUBSTRINGS, "-", 0, index, true ) ) { // }
+        //if ( JGUIUtil.isSimpleJComboBoxItem(__DataType_JComboBox, DataType, JGUIUtil.CHECK_SUBSTRINGS, "-", 0, index, true ) ) { // so editor can match }
 	    if ( JGUIUtil.isSimpleJComboBoxItem( __DataType_JComboBox, DataType, JGUIUtil.NONE, null, null ) ) {
             // Existing command so select the matching choice.
 	    	if ( Message.isDebugOn ) {
@@ -1596,65 +1570,46 @@ private void refresh () {
 				__error_wait = true;
 			}
 		}
-	    if ( JGUIUtil.isSimpleJComboBoxItem( __IrregularInterval_JComboBox, IrregularInterval, JGUIUtil.NONE, null, null ) ) {
-            //__IrregularInterval_JComboBox.select (index[0] );
-            __IrregularInterval_JComboBox.select (IrregularInterval);
+	    if ( JGUIUtil.isSimpleJComboBoxItem( __TimePrecision_JComboBox, TimePrecision, JGUIUtil.NONE, null, null ) ) {
+            //__TimePrecision_JComboBox.select (index[0] );
+            __TimePrecision_JComboBox.select (TimePrecision);
         }
         else {
-            Message.printStatus(2,routine,"IrregularInterval=\"" + IrregularInterval + "\" is invalid.");
-            if ( (IrregularInterval == null) || IrregularInterval.equals("") ) {
+            Message.printStatus(2,routine,"TimePrecision=\"" + TimePrecision + "\" is invalid.");
+            if ( (TimePrecision == null) || TimePrecision.equals("") ) {
                 // New command...select the default.
                 // Populating the list above selects the default that is appropriate so no need to do here.
-            	__IrregularInterval_JComboBox.select (0);
+            	__TimePrecision_JComboBox.select (0);
             }
             else {
                 // Bad user command.
                 Message.printWarning ( 1, routine, "Existing command references an invalid\n"+
-                  "IrregularInterval parameter \"" + Interval + "\".  Select a\ndifferent value or Cancel." );
-            	__IrregularInterval_JComboBox.select (0);
+                  "TimePrecision parameter \"" + Interval + "\".  Select a\ndifferent value or Cancel." );
+            	__TimePrecision_JComboBox.select (0);
             }
         }
-	    /*
-	    if ( JGUIUtil.isSimpleJComboBoxItem( __Read24HourAsDay_JComboBox, Read24HourAsDay, JGUIUtil.NONE, null, null ) ) {
-            //__Read24HourAsDay_JComboBox.select (index[0] );
-            __Read24HourAsDay_JComboBox.select (Read24HourAsDay);
-        }
-        else {
-            Message.printStatus(2,routine,"Read24HourAsDay=\"" + Read24HourAsDay + "\" is invalid.");
-            if ( (Read24HourAsDay == null) || Read24HourAsDay.equals("") ) {
-                // New command...select the default.
-                // Populating the list above selects the default that is appropriate so no need to do here.
-            	__Read24HourAsDay_JComboBox.select (0);
-            }
-            else {
-                // Bad user command.
-                Message.printWarning ( 1, routine, "Existing command references an invalid\n"+
-                  "Read24HourAsDay parameter \"" + Interval + "\".  Select a\ndifferent value or Cancel." );
-            	__Read24HourAsDay_JComboBox.select (0);
-            }
-        }
-	    if ( JGUIUtil.isSimpleJComboBoxItem( __ReadDayAs24Hour_JComboBox, ReadDayAs24Hour, JGUIUtil.NONE, null, null ) ) {
-            //__ReadDayAs24Hour_JComboBox.select (index[0] );
-            __ReadDayAs24Hour_JComboBox.select (ReadDayAs24Hour);
-        }
-        else {
-            Message.printStatus(2,routine,"ReadDayAs24Hour=\"" + ReadDayAs24Hour + "\" is invalid.");
-            if ( (ReadDayAs24Hour == null) || ReadDayAs24Hour.equals("") ) {
-                // New command...select the default.
-                // Populating the list above selects the default that is appropriate so no need to do here.
-            	__ReadDayAs24Hour_JComboBox.select (0);
-            }
-            else {
-                // Bad user command.
-                Message.printWarning ( 1, routine, "Existing command references an invalid\n"+
-                  "ReadDayAs24Hour parameter \"" + Interval + "\".  Select a\ndifferent value or Cancel." );
-            	__ReadDayAs24Hour_JComboBox.select (0);
-            }
-        }
-        */
+	    if ( Units != null ) {
+	    	__Units_JTextField.setText ( Units );
+	    }
 	    if ( Timeout != null ) {
 	    	__Timeout_JTextField.setText ( Timeout );
 	    }
+		if ( Timezone == null ) {
+			// Select default.
+			__Timezone_JComboBox.select ( 0 );
+		}
+		else {
+		    if ( JGUIUtil.isSimpleJComboBoxItem( __Timezone_JComboBox,
+				Timezone, JGUIUtil.NONE, null, null ) ) {
+				__Timezone_JComboBox.select ( Timezone);
+			}
+			else {
+			    Message.printWarning ( 1, routine,
+				"Existing command references an invalid Timezone value \"" +
+				Timezone + "\".  Select a different value or Cancel.");
+				__error_wait = true;
+			}
+		}
 	    if ( JGUIUtil.isSimpleJComboBoxItem( __Debug_JComboBox, Debug, JGUIUtil.NONE, null, null ) ) {
             //__Debug_JComboBox.select (index[0] );
             __Debug_JComboBox.select (Debug);
@@ -1718,8 +1673,9 @@ private void refresh () {
 	InputStart = __InputStart_JTextField.getText().trim();
 	InputEnd = __InputEnd_JTextField.getText().trim();
 	ReadData = __ReadData_JComboBox.getSelected();
-	IrregularInterval = __IrregularInterval_JComboBox.getSelected();
+	TimePrecision = __TimePrecision_JComboBox.getSelected();
 	Timezone = __Timezone_JComboBox.getSelected();
+	Units = __Units_JTextField.getText().trim();
 	Timeout = __Timeout_JTextField.getText().trim();
 	Debug = __Debug_JComboBox.getSelected();
 
@@ -1781,14 +1737,9 @@ private void refresh () {
 	props.add ( "InputStart=" + InputStart );
 	props.add ( "InputEnd=" + InputEnd );
 	props.add ( "ReadData=" + ReadData );
-	props.add ( "IrregularInterval=" + IrregularInterval );
-	/*
-	Read24HourAsDay = __Read24HourAsDay_JComboBox.getSelected();
-	props.add ( "Read24HourAsDay=" + Read24HourAsDay );
-	ReadDayAs24Hour = __ReadDayAs24Hour_JComboBox.getSelected();
-	props.add ( "ReadDayAs24Hour=" + ReadDayAs24Hour );
-	*/
+	props.add ( "TimePrecision=" + TimePrecision );
 	props.add ( "Timezone=" + Timezone );
+	props.add ( "Units=" + Units );
 	props.add ( "Timeout=" + Timeout );
 	props.add ( "Debug=" + Debug );
 	__command_JTextArea.setText( __command.toString ( props ).trim() );
