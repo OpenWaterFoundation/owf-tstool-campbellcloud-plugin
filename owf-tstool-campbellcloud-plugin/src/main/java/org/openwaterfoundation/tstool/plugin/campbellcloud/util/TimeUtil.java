@@ -6,6 +6,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
+import RTi.Util.Message.Message;
 import RTi.Util.Time.DateTime;
 
 /**
@@ -33,9 +34,17 @@ public class TimeUtil {
 	 * @return DateTime object with in the requested timezone
 	 */
 	public static DateTime epochMilliToDateTime ( Long timestamp, ZoneId zoneId ) {
+		boolean debug = false;
+		String routine = null;
 		// First get the OffsetDateTime for the requested offset.
 		ZonedDateTime zdt = Instant.ofEpochMilli(timestamp).atZone(zoneId);
-		// Convert to a DateTime object, still in UTC.
+		if ( debug ) {
+			routine = TimeUtil.class.getSimpleName() + ".epochMilliToDateTime";
+			Message.printStatus(2, routine, "timestamp=" + timestamp + " ZonedDateTime=" + zdt);
+		}
+		// Convert to a DateTime object:
+		// - using the time zone from the ZonedDateTime
+		// - time precision is milliseconds
 		DateTime dt = new DateTime(DateTime.PRECISION_MILLISECOND);
 		dt.setYear(zdt.getYear());
 		dt.setMonth(zdt.getMonthValue());
@@ -46,6 +55,9 @@ public class TimeUtil {
 		dt.setNanoSecond(zdt.getNano());
 		// The ID will be "UTC", "America/Denver", etc.
 		dt.setTimeZone(zoneId.getId());
+		if ( debug ) {
+			Message.printStatus(2, routine, "timestamp=" + timestamp + " DateTime=" + dt);
+		}
 		return dt;
 	}
 

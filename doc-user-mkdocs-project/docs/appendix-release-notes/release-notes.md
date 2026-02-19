@@ -26,6 +26,7 @@ TSTool and Plugin Version Compatibility
 
 Release notes for specific versions are listed below, with repository issue number.
 
+*   [Version 1.0.5](#version-105)
 *   [Version 1.0.4](#version-104)
 *   [Version 1.0.3](#version-103)
 *   [Version 1.0.2](#version-102)
@@ -33,6 +34,15 @@ Release notes for specific versions are listed below, with repository issue numb
 *   [Version 1.0.0](#version-100)
 
 ----------
+
+## Version 1.0.5 ##
+
+**Maintenance release to improve time zone handling and testing.**
+
+*   ![change](change.png) Update the [`ReadCampbellCloud`](../command-ref/ReadCampbellCloud/ReadCampbellCloud.md) command:
+    +   Add the `IncludeNullData` parameter to control whether null data values are included in the output.
+    +   Allow `DataType` to be specified with `${Property}`.
+    +   Allow `Timezone` to be specified with `${Property}`.
 
 ## Version 1.0.4 ##
 

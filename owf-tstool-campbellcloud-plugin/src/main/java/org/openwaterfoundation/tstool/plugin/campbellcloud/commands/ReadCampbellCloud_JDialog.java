@@ -67,6 +67,7 @@ import org.openwaterfoundation.tstool.plugin.campbellcloud.ui.CampbellCloud_Time
 
 import riverside.datastore.DataStore;
 import rti.tscommandprocessor.core.TSCommandProcessor;
+import rti.tscommandprocessor.core.TSCommandProcessorUtil;
 import RTi.TS.TSFormatSpecifiersJPanel;
 import RTi.Util.GUI.InputFilter_JPanel;
 import RTi.Util.GUI.JGUIUtil;
@@ -74,9 +75,9 @@ import RTi.Util.GUI.SimpleJButton;
 import RTi.Util.GUI.SimpleJComboBox;
 import RTi.Util.Help.HelpViewer;
 import RTi.Util.IO.CommandProcessor;
+import RTi.Util.IO.Prop;
 import RTi.Util.IO.PropList;
 import RTi.Util.Message.Message;
-import RTi.Util.Time.TimeInterval;
 
 /**
 Editor for the ReadCampbellCloud() command.
@@ -110,6 +111,7 @@ private TSFormatSpecifiersJPanel __Alias_JTextField = null;
 private JTextField __InputStart_JTextField;
 private JTextField __InputEnd_JTextField;
 private SimpleJComboBox __ReadData_JComboBox = null;
+private SimpleJComboBox __IncludeNullData_JComboBox = null;
 private SimpleJComboBox __TimePrecision_JComboBox = null;
 private SimpleJComboBox __Timezone_JComboBox;
 private JTextField __Units_JTextField;
@@ -128,16 +130,21 @@ private boolean __first_time = true;
 private boolean __ok = false; // Was OK pressed when closing the dialog?
 private boolean __ignoreEvents = false; // Used to ignore cascading events when initializing the components.
 
+private List<Prop> __propList = null; // List of discovery mode Prop so that DataStore can be a ${Property}.
+
+private String dataTypeInitial = null; // Initial DataType command parameter, to allow ${Property} to be shown in the list.
 private String stationIdInitial = null; // Initial LocId command parameter, to allow ${Property} to be shown in the list.
+private String timezoneInitial = null; // Initial Timezone command parameter, to allow ${Property} to be shown in the list.
 
 /**
 Command editor constructor.
 @param parent JFrame class instantiating this class.
 @param command Command to edit.
+@param propList list of discovery mode Prop, so that DataStore can be a ${Property}
 */
-public ReadCampbellCloud_JDialog ( JFrame parent, ReadCampbellCloud_Command command ) {
+public ReadCampbellCloud_JDialog ( JFrame parent, ReadCampbellCloud_Command command, List<Prop> propList ) {
 	super(parent, true);
-	initialize ( parent, command );
+	initialize ( parent, command, propList );
 }
 
 /**
@@ -193,7 +200,7 @@ private void actionPerformedDataStoreSelected ( ) {
     setDataStoreForSelectedInput();
     //Message.printStatus(2, "", "Selected data store " + __dataStore + " __dmi=" + __dmi );
     // Now populate the data type choices corresponding to the data store
-    populateDataTypeChoices ( getSelectedDataStore() );
+    populateDataTypeChoices ( getSelectedDataStore(), this.dataTypeInitial );
 }
 
 /**
@@ -387,6 +394,10 @@ private void checkInput () {
 	if ( !ReadData.isEmpty() ) {
 		props.set ( "ReadData", ReadData );
 	}
+    String IncludeNullData = __IncludeNullData_JComboBox.getSelected();
+    if ( IncludeNullData.length() > 0 ) {
+        props.set ( "IncludeNullData", IncludeNullData );
+    }
     String TimePrecision = __TimePrecision_JComboBox.getSelected();
     if ( TimePrecision.length() > 0 ) {
         props.set ( "TimePrecision", TimePrecision );
@@ -465,6 +476,8 @@ private void commitEdits () {
 	__command.setCommandParameter ( "InputEnd", InputEnd );
 	String ReadData = __ReadData_JComboBox.getSelected();
 	__command.setCommandParameter (	"ReadData", ReadData );
+	String IncludeNullData = __IncludeNullData_JComboBox.getSelected();
+	__command.setCommandParameter (	"IncludeNullData", IncludeNullData );
 	String TimePrecision = __TimePrecision_JComboBox.getSelected();
 	__command.setCommandParameter (	"TimePrecision", TimePrecision );
 	String Timezone = __Timezone_JComboBox.getSelected();
@@ -646,10 +659,12 @@ private String getWhere ( int ifg ) {
 Instantiates the GUI components.
 @param parent JFrame class instantiating this class.
 @param command Command to edit.
+@param propList list of discovery mode Prop, so that DataStore can be a ${Property}
 */
-private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
+private void initialize ( JFrame parent, ReadCampbellCloud_Command command, List<Prop> propList ) {
 	//String routine = getClass().getSimpleName() + ".initialize";
-	__command = command;
+	this.__command = command;
+	this.__propList = propList;
 	CommandProcessor processor = __command.getCommandProcessor();
 	addWindowListener( this );
     Insets insetsTLBR = new Insets(2,2,2,2);
@@ -715,10 +730,12 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Data type:"),
 		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
-	__DataType_JComboBox = new SimpleJComboBox ( false );
-	__DataType_JComboBox.setToolTipText("Data types from Campbell Cloud 'field', used in TSID data type.");
+	__DataType_JComboBox = new SimpleJComboBox ( true ); // Allow editing so that properties can be used.
+    __DataType_JComboBox.setPrototypeDisplayValue("CAMPBELLCLOUD-SOMEORGANIZATIONNAME123456789"); // Same as DataStore.
+	__DataType_JComboBox.setToolTipText("Data types from Campbell Cloud 'field', used in TSID data type, can use ${Property}.");
 	__DataType_JComboBox.setMaximumRowCount(20);
 	__DataType_JComboBox.addItemListener ( this );
+    __DataType_JComboBox.getEditor().getEditorComponent().addKeyListener ( this );
         JGUIUtil.addComponent(main_JPanel, __DataType_JComboBox,
 		1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Required to match a single location - data type for time series."),
@@ -872,7 +889,7 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     JGUIUtil.addComponent(main_JPanel, new JLabel ("Input start:"),
         0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
     __InputStart_JTextField = new JTextField (30);
-    __InputStart_JTextField.setToolTipText("Starting date/time to read data (default is current minus 30 days)");
+    __InputStart_JTextField.setToolTipText("Starting date/time to read data (default is current minus 30 days), default timezone is computer's, can use ${Property}");
     __InputStart_JTextField.addKeyListener (this);
     JGUIUtil.addComponent(main_JPanel, __InputStart_JTextField,
         1, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
@@ -882,7 +899,7 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Input end:"),
         0, ++y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
     __InputEnd_JTextField = new JTextField (30);
-    __InputEnd_JTextField.setToolTipText("Ending date/time to read data (default is current minus 30 days)");
+    __InputEnd_JTextField.setToolTipText("Ending date/time to read data (default is current time), default timezone is computer's, can use ${Property}");
     __InputEnd_JTextField.addKeyListener (this);
     JGUIUtil.addComponent(main_JPanel, __InputEnd_JTextField,
         1, y, 6, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
@@ -904,6 +921,23 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
 		1, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
     JGUIUtil.addComponent(main_JPanel, new JLabel (
 		"Optional - read data values (default=" + __command._True + ")."),
+		3, y, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+
+    JGUIUtil.addComponent(main_JPanel, new JLabel ( "Include null data?:"),
+		0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
+    List<String> IncludeNullData_List = new ArrayList<>( 3 );
+	IncludeNullData_List.add ( "" );
+	IncludeNullData_List.add ( __command._False );
+	IncludeNullData_List.add ( __command._True );
+	__IncludeNullData_JComboBox = new SimpleJComboBox ( false );
+	__IncludeNullData_JComboBox.setToolTipText("Include null data values (useful for troubleshooting)?");
+	__IncludeNullData_JComboBox.setData ( IncludeNullData_List);
+	__IncludeNullData_JComboBox.select ( 0 );
+	__IncludeNullData_JComboBox.addActionListener ( this );
+    JGUIUtil.addComponent(main_JPanel, __IncludeNullData_JComboBox,
+		1, y, 2, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
+    JGUIUtil.addComponent(main_JPanel, new JLabel (
+		"Optional - include null data values (default=" + __command._False + ")."),
 		3, y, 4, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Time precision:"),
@@ -928,22 +962,10 @@ private void initialize ( JFrame parent, ReadCampbellCloud_Command command ) {
 
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Timezone:"),
         0, ++y, 1, 1, 0, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.EAST);
-    __Timezone_JComboBox = new SimpleJComboBox ( false ); // Don't allow editing (must select from choice).
-    __Timezone_JComboBox.setToolTipText("Timezone for response, for example America/Denver (default is computer's zone).");
-    // Get the list of recognized zones:
-    // - this includes "UTC"
-    Set<String> zoneIds = ZoneId.getAvailableZoneIds();
-    List<String> zoneIdList = new ArrayList<>();
-    for ( String zoneId : zoneIds ) {
-    	zoneIdList.add(zoneId);
-    }
-    Collections.sort(zoneIdList,String.CASE_INSENSITIVE_ORDER);
-    zoneIdList.add(0, "");
-    // Add the local computer and UTC at the top (afer sorting) to streamline editing.
-	zoneIdList.add(1, ZoneId.systemDefault().toString());
-    zoneIdList.add(2, "UTC");
-    __Timezone_JComboBox.setData(zoneIdList);
+    __Timezone_JComboBox = new SimpleJComboBox ( true ); // Allow editing so that properties can be used.
+    __Timezone_JComboBox.setToolTipText("Timezone for response, for example US/Eastern (default is UTC), can use ${Property}.");
 	__Timezone_JComboBox.addActionListener ( this );
+    __Timezone_JComboBox.getEditor().getEditorComponent().addKeyListener ( this );
     JGUIUtil.addComponent(main_JPanel, __Timezone_JComboBox,
         1, y, 2, 1, 1, 0, insetsTLBR, GridBagConstraints.NONE, GridBagConstraints.WEST);
     JGUIUtil.addComponent(main_JPanel, new JLabel ( "Optional - output timezone (default = system/station timezone)."),
@@ -1161,22 +1183,56 @@ public boolean ok () {
 }
 
 /**
-Set the data type choices in response to a new datastore being selected.
+Populate the data type choices in response to a new datastore being selected.
 This should match the main TSTool interface.
-@param datastore the datastore to use to determine the data types
+@param datastore the selected datastore
+@param dataType the initial command parameter
 */
-private void populateDataTypeChoices ( CampbellCloudDataStore datastore ) {
+private void populateDataTypeChoices ( CampbellCloudDataStore datastore, String dataType ) {
+	String routine = getClass().getSimpleName() + ".populateDataTypeChoices";
 	if ( datastore == null ) {
 		return;
 	}
-	//boolean includeWildcards = false;
+	if ( Message.isDebugOn ) {
+		Message.printStatus ( 2, routine, "Populating data types for datastore=\"" + datastore.getName() + "\" initial data type=" + dataType );
+	}
+	// Don't include the interval because it comes after the data type selection.
+	String selectedInterval = null;
+	// Include * so that it can be used with 'Where' choices.
 	boolean includeWildcards = true;
-	// Don't include the SHEF types since they just complicate things.
-    List<String> dataTypes = datastore.getTimeSeriesDataTypeStrings(getSelectedInterval(), includeWildcards);
+    List<String> dataTypes = datastore.getTimeSeriesDataTypeStrings ( selectedInterval, includeWildcards );
+    if ( (dataType != null) && dataType.contains("${") ) { // } - so editor matches correctly
+    	// Initial command was a property so add.
+    	if ( dataTypes.size() == 0 ) {
+    		dataTypes.add(dataType);
+    	}
+    	else {
+    		dataTypes.add(0, dataType);
+    	}
+    }
     __DataType_JComboBox.setData ( dataTypes );
-    // Select the default.
-    // TODO smalers 2018-06-21 evaluate whether need datastore method for default.
-    __DataType_JComboBox.select(0);
+    // Select the default:
+    // - will either be the first in the list (wildcard) or the 'commandParameter'
+    // - select null first to force the event to happen in any case
+    if ( __DataType_JComboBox.getItemCount() == 0 ) {
+    	// For some reason there were no data types so add an empty string and select to ensure that events chain.
+    	__DataType_JComboBox.add("");
+    }
+    if ( (dataType != null) && !dataType.isEmpty() && dataType.contains("${") ) { // } - so editor matches correctly
+    	// Select what the initial command parameter had.
+    	if ( Message.isDebugOn ) {
+		   	Message.printStatus ( 2, routine, "Selecting initial data type: " + dataType );
+	   	}
+    	__DataType_JComboBox.select(null);
+    	__DataType_JComboBox.select(dataType);
+    }
+    else {
+    	if ( Message.isDebugOn ) {
+		   	Message.printStatus ( 2, routine, "Selecting data type [0]." );
+	   	}
+    	__DataType_JComboBox.select(null);
+   		__DataType_JComboBox.select(0);
+    }
 }
 
 /**
@@ -1186,6 +1242,13 @@ This code matches the TSTool main interface code.
 private void populateIntervalChoices ( CampbellCloudDataStore datastore ) {
 	String routine = getClass().getSimpleName() + ".populateIntervalChoices";
 	String selectedDataType = getSelectedDataType();
+	if ( (selectedDataType != null) && selectedDataType.startsWith("${") ) { // } - to allow editor to match
+		// Data type is a property so don't use to filter intervals.
+		selectedDataType = null;
+		if ( Message.isDebugOn ) {
+			Message.printStatus ( 2, routine, "Setting data type to null for catalog lookup since a property.");
+		}
+	}
     Message.printStatus ( 2, routine, "Populating intervals for selected data type \"" + selectedDataType + "\"" );
 	List<String> dataIntervals = null;
 	if ( datastore == null ) {
@@ -1221,9 +1284,13 @@ private void populateStationIdChoices ( CampbellCloudDataStore datastore, String
 	if ( datastore == null ) {
 		return;
 	}
+
+	// Because editing is in discovery mode, expand the parameters that allow properties.
+
 	// Get the cached stations:
 	// - should be sorted by name
-    String dataType = getSelectedDataType();
+    String selectedDataType = getSelectedDataType();
+    String dataType = TSCommandProcessorUtil.expandParameterDiscoveryValue(this.__propList, this.__command, selectedDataType);
     boolean doDataType = false;
     if ( (dataType != null) && !dataType.isEmpty() && !dataType.equals("*") ) {
     	doDataType = true;
@@ -1296,6 +1363,59 @@ private void populateStationIdChoices ( CampbellCloudDataStore datastore, String
 }
 
 /**
+Set the timezone choices.
+@param timezone the initial command parameter
+*/
+private void populateTimezoneChoices ( String timezone ) {
+	String routine = getClass().getSimpleName() + ".populateTimezoneChoices";
+	if ( Message.isDebugOn ) {
+		Message.printStatus ( 2, routine, "Populating timezone, initial timezone=" + timezone );
+	}
+    List<String> timezones = new ArrayList<>();
+    Set<String> zoneIds = ZoneId.getAvailableZoneIds();
+    for ( String zoneId : zoneIds ) {
+    	timezones.add(zoneId);
+    }
+    Collections.sort(timezones,String.CASE_INSENSITIVE_ORDER);
+    timezones.add(0, "");
+    // Add the local computer and UTC at the top (afer sorting) to streamline editing.
+	timezones.add(1, ZoneId.systemDefault().toString());
+    timezones.add(2, "UTC");
+    if ( (timezone != null) && timezone.contains("${") ) { // } - so editor matches correctly
+    	// Initial command was a property so add.
+    	if ( timezones.size() == 0 ) {
+    		timezones.add(timezone);
+    	}
+    	else {
+    		timezones.add(0, timezone);
+    	}
+    }
+    __Timezone_JComboBox.setData ( timezones );
+    // Select the default:
+    // - will either be the first in the list (wildcard) or the 'commandParameter'
+    // - select null first to force the event to happen in any case
+    if ( __Timezone_JComboBox.getItemCount() == 0 ) {
+    	// There were no group names so add an empty string and select to ensure that events chain.
+    	__Timezone_JComboBox.add("");
+    }
+    if ( (timezone != null) && !timezone.isEmpty() && timezone.contains("${") ) { // } - so editor matches correctly
+    	// Select what the initial command parameter had.
+    	if ( Message.isDebugOn ) {
+		   	Message.printStatus ( 2, routine, "Selecting initial timezone: " + timezone );
+	   	}
+    	__Timezone_JComboBox.select(null);
+    	__Timezone_JComboBox.select(timezone);
+    }
+    else {
+    	if ( Message.isDebugOn ) {
+		   	Message.printStatus ( 2, routine, "Selecting timezone [0]." );
+	   	}
+    	__Timezone_JComboBox.select(null);
+   		__Timezone_JComboBox.select(0);
+    }
+}
+
+/**
 Refresh the command string from the dialog contents.
 */
 private void refresh () {
@@ -1317,6 +1437,7 @@ private void refresh () {
 	String InputStart = "";
 	String InputEnd = "";
 	String ReadData = "";
+	String IncludeNullData = "";
 	String TimePrecision = "";
 	String Timezone = "";
 	String Units = "";
@@ -1342,6 +1463,7 @@ private void refresh () {
 		InputStart = props.getValue ( "InputStart" );
 		InputEnd = props.getValue ( "InputEnd" );
 		ReadData = props.getValue ( "ReadData" );
+		IncludeNullData = props.getValue ( "IncludeNullData" );
 		TimePrecision = props.getValue ( "TimePrecision" );
 		Timezone = props.getValue ( "Timezone" );
 		Units = props.getValue ( "Units" );
@@ -1351,9 +1473,10 @@ private void refresh () {
 		// Get initial command parameter values, which will be shown in lists in addition to other values:
 		// - needed to handle ${Property} in parameter values
         //this.dataStoreInitial = this.__command.getCommandParameters().getValue("DataStore");
-        //this.dataTypeInitial = this.__command.getCommandParameters().getValue("DataType");
+        this.dataTypeInitial = this.__command.getCommandParameters().getValue("DataType");
         //this.intervalInitial = this.__command.getCommandParameters().getValue("Interval");
         this.stationIdInitial = this.__command.getCommandParameters().getValue("StationId");
+        this.timezoneInitial = this.__command.getCommandParameters().getValue("Timezone");
 		
 		// General (top).
         // The data store list is set up in initialize() but is selected here.
@@ -1375,16 +1498,17 @@ private void refresh () {
                   "DataStore parameter \"" + DataStore + "\".  Select a\ndifferent value or Cancel." );
             }
         }
-        //
+
         // Also need to make sure that the input type and DMI are actually selected.
         // Call manually because events are disabled at startup to allow cascade to work properly.
         setDataStoreForSelectedInput();
+
         // First populate the data type choices based on the datastore that is selected.
-        populateDataTypeChoices(getSelectedDataStore()); //, this.dataTypeInitial );
+        populateDataTypeChoices(getSelectedDataStore(), this.dataTypeInitial );
         // Then set to the value from the command.
         int [] index = new int[1];
         //Message.printStatus(2,routine,"Checking to see if DataType=\"" + DataType + "\" is a choice.");
-        //if ( JGUIUtil.isSimpleJComboBoxItem(__DataType_JComboBox, DataType, JGUIUtil.CHECK_SUBSTRINGS, "-", 0, index, true ) ) { // so editor can match }
+        //if ( JGUIUtil.isSimpleJComboBoxItem(__DataType_JComboBox, DataType, JGUIUtil.CHECK_SUBSTRINGS, "-", 0, index, true ) ) { // }
 	    if ( JGUIUtil.isSimpleJComboBoxItem( __DataType_JComboBox, DataType, JGUIUtil.NONE, null, null ) ) {
             // Existing command so select the matching choice.
 	    	if ( Message.isDebugOn ) {
@@ -1419,6 +1543,7 @@ private void refresh () {
                 }
             }
         }
+
         // Populate the interval choices based on the selected data type.
         populateIntervalChoices(getSelectedDataStore());
         // Now select what the command had previously (if specified).
@@ -1570,6 +1695,22 @@ private void refresh () {
 				__error_wait = true;
 			}
 		}
+		if ( IncludeNullData == null ) {
+			// Select default.
+			__IncludeNullData_JComboBox.select ( 0 );
+		}
+		else {
+		    if ( JGUIUtil.isSimpleJComboBoxItem( __IncludeNullData_JComboBox,
+				IncludeNullData, JGUIUtil.NONE, null, null ) ) {
+				__IncludeNullData_JComboBox.select ( IncludeNullData);
+			}
+			else {
+			    Message.printWarning ( 1, routine,
+				"Existing command references an invalid IncludeNullData value \"" +
+				IncludeNullData + "\".  Select a different value or Cancel.");
+				__error_wait = true;
+			}
+		}
 	    if ( JGUIUtil.isSimpleJComboBoxItem( __TimePrecision_JComboBox, TimePrecision, JGUIUtil.NONE, null, null ) ) {
             //__TimePrecision_JComboBox.select (index[0] );
             __TimePrecision_JComboBox.select (TimePrecision);
@@ -1594,22 +1735,39 @@ private void refresh () {
 	    if ( Timeout != null ) {
 	    	__Timeout_JTextField.setText ( Timeout );
 	    }
-		if ( Timezone == null ) {
-			// Select default.
-			__Timezone_JComboBox.select ( 0 );
-		}
-		else {
-		    if ( JGUIUtil.isSimpleJComboBoxItem( __Timezone_JComboBox,
-				Timezone, JGUIUtil.NONE, null, null ) ) {
-				__Timezone_JComboBox.select ( Timezone);
-			}
-			else {
-			    Message.printWarning ( 1, routine,
-				"Existing command references an invalid Timezone value \"" +
-				Timezone + "\".  Select a different value or Cancel.");
-				__error_wait = true;
-			}
-		}
+
+        // First populate the group name choices based on the datastore that is selected.
+        populateTimezoneChoices(this.timezoneInitial );
+        // Then set to the value from the command.
+        index = new int[1];
+	    if ( JGUIUtil.isSimpleJComboBoxItem( __Timezone_JComboBox, Timezone, JGUIUtil.NONE, null, null ) ) {
+            // Existing command so select the matching choice.
+	    	if ( Message.isDebugOn ) {
+	    		Message.printStatus(2,routine,"Timezone=\"" + Timezone + "\" was a choice, selecting " + Timezone + ".");
+	    	}
+            __Timezone_JComboBox.select(Timezone);
+        }
+        else {
+        	if ( Message.isDebugOn ) {
+        		Message.printStatus(2,routine,"Timezone=\"" + Timezone + "\" is not a choice - selecting item [0].");
+        	}
+            if ( (Timezone == null) || Timezone.equals("") ) {
+                // New command.  Select the default.
+                // Populating the list above selects the default that is appropriate so no need to do here.
+                if ( __Timezone_JComboBox.getItemCount() > 0 ) {
+                	__Timezone_JComboBox.select(0);
+                }
+            }
+            else {
+                // Bad user command.
+                Message.printWarning ( 1, routine, "Existing command references an invalid\n"+
+                  "Timezone parameter \"" + Timezone + "\".  Select a\ndifferent value or Cancel." );
+                if ( __Timezone_JComboBox.getItemCount() > 0 ) {
+                	__Timezone_JComboBox.select(0);
+                }
+            }
+        }
+
 	    if ( JGUIUtil.isSimpleJComboBoxItem( __Debug_JComboBox, Debug, JGUIUtil.NONE, null, null ) ) {
             //__Debug_JComboBox.select (index[0] );
             __Debug_JComboBox.select (Debug);
@@ -1673,6 +1831,7 @@ private void refresh () {
 	InputStart = __InputStart_JTextField.getText().trim();
 	InputEnd = __InputEnd_JTextField.getText().trim();
 	ReadData = __ReadData_JComboBox.getSelected();
+	IncludeNullData = __IncludeNullData_JComboBox.getSelected();
 	TimePrecision = __TimePrecision_JComboBox.getSelected();
 	Timezone = __Timezone_JComboBox.getSelected();
 	Units = __Units_JTextField.getText().trim();
@@ -1737,6 +1896,7 @@ private void refresh () {
 	props.add ( "InputStart=" + InputStart );
 	props.add ( "InputEnd=" + InputEnd );
 	props.add ( "ReadData=" + ReadData );
+	props.add ( "IncludeNullData=" + IncludeNullData );
 	props.add ( "TimePrecision=" + TimePrecision );
 	props.add ( "Timezone=" + Timezone );
 	props.add ( "Units=" + Units );

@@ -12,7 +12,7 @@ This plugin allows Campbell Cloud time series to be listed and read.
 This documentation has been updated for:
 
 *   TSTool version 15.2.0
-*   TSTool Campbell Cloud plugin version 1.0.4
+*   TSTool Campbell Cloud plugin version 1.0.5
 
 **TSTool 15.0.0 or later is required for this version of the plugin due to Java being updated to version 11.**
 
