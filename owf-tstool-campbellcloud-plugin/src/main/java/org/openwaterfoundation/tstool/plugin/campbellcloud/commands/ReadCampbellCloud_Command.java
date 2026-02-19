@@ -22,6 +22,7 @@ NoticeEnd */
 
 package org.openwaterfoundation.tstool.plugin.campbellcloud.commands;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -139,6 +140,7 @@ throws InvalidCommandParameterException {
     String InputStart = parameters.getValue ( "InputStart" );
     String InputEnd = parameters.getValue ( "InputEnd" );
     String ReadData = parameters.getValue ( "ReadData" );
+    String IncludeNullData = parameters.getValue ( "IncludeNullData" );
     String TimePrecision = parameters.getValue ( "TimePrecision" );
     String Timeout = parameters.getValue ( "Timeout" );
     String Debug = parameters.getValue ( "Debug" );
@@ -206,6 +208,16 @@ throws InvalidCommandParameterException {
             status.addToLog ( CommandPhaseType.INITIALIZATION,
                 new CommandLogRecord(CommandStatusType.FAILURE,
                     message, "Specify " + _False + " or " + _True + " (default)." ) );
+		}
+	}
+
+	if ( (IncludeNullData != null) && !IncludeNullData.isEmpty() ) {
+		if ( !IncludeNullData.equalsIgnoreCase(_True) && !IncludeNullData.equalsIgnoreCase(_False) ) {
+            message = "Invalid IncludeNullData parameter \"" + IncludeNullData + "\"";
+			warning += "\n" + message;
+            status.addToLog ( CommandPhaseType.INITIALIZATION,
+                new CommandLogRecord(CommandStatusType.FAILURE,
+                    message, "Specify " + _False + " (default) or " + _True + "." ) );
 		}
 	}
 
@@ -363,6 +375,7 @@ throws InvalidCommandParameterException {
     validList.add ( "InputStart" );
     validList.add ( "InputEnd" );
     validList.add ( "ReadData" );
+    validList.add ( "IncludeNullData" );
     validList.add ( "TimePrecision" );
     validList.add ( "Timezone" );
     validList.add ( "Units" );
@@ -383,6 +396,7 @@ throws InvalidCommandParameterException {
 /**
  * Create properties for reading time series.
  * @param debug whether to run web service queries in debug
+ * @param includeNullData whether null data values are included in the output
  * @param timeout timeout in seconds
  * @param timePrecision time precision to use for output time series
  * @param timezone time zone to be used for response, important for interval calculations
@@ -391,6 +405,7 @@ throws InvalidCommandParameterException {
  */
 private HashMap<String,Object> createReadProperties (
 	boolean debug,
+	boolean includeNullData,
 	int timeout,
 	String timePrecision,
 	String timezone,
@@ -407,6 +422,7 @@ private HashMap<String,Object> createReadProperties (
 	if ( debug ) {
 		readProperties.put("Debug", Boolean.TRUE );
 	}
+	readProperties.put("IncludeNullData", Boolean.valueOf(includeNullData) );
 	if ( (timePrecision != null) && !timePrecision.isEmpty() ) {
 		readProperties.put("TimePrecision", timePrecision );
 	}
@@ -542,7 +558,10 @@ Edit the command.
 */
 public boolean editCommand ( JFrame parent ) {
 	// The command will be modified if changed.
-	return (new ReadCampbellCloud_JDialog ( parent, this )).ok();
+	List<Prop> propList =
+        TSCommandProcessorUtil.getDiscoveryPropFromCommandsBeforeCommand(
+            (TSCommandProcessor)getCommandProcessor(), this);
+	return (new ReadCampbellCloud_JDialog ( parent, this, propList )).ok();
 }
 
 /**
@@ -732,11 +751,24 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 		// OK to use the same variable as discovery boolean.
 		readData = false;
 	}
+	String IncludeNullData = parameters.getValue ("IncludeNullData" );
+	boolean includeNullData = false;
+	if ( commandPhase == CommandPhaseType.RUN ) {
+	    IncludeNullData = TSCommandProcessorUtil.expandParameterValue(processor, this, IncludeNullData);
+	}
+	if ( (IncludeNullData != null) && IncludeNullData.equalsIgnoreCase(_True) ) {
+		// OK to use the same variable as discovery boolean.
+		includeNullData = true;
+	}
     String TimePrecision = parameters.getValue("TimePrecision");
 	TimePrecision = TSCommandProcessorUtil.expandParameterValue(getCommandProcessor(), this, TimePrecision);
 
 	String Timezone = parameters.getValue ("Timezone" );
+	if ( commandPhase == CommandPhaseType.RUN ) {
+	    Timezone = TSCommandProcessorUtil.expandParameterValue(processor, this, Timezone);
+	}
 	if ( (Timezone == null) || Timezone.isEmpty() ) {
+		// Default timezone.
 		Timezone = "UTC";
 	}
 	String Units = parameters.getValue ("Units" );
@@ -757,7 +789,14 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
     DateTime InputStart_DateTime = null;
     DateTime InputEnd_DateTime = null;
 	if ( commandPhase == CommandPhaseType.RUN ) {
+		// Check the timezone for the input period.
+		// - required to make sure that the input period is converted to UTC for the Campbell Cloud API
+		// - if not specified for some reason, set to the computer timezone
+		String computerTimezone = ZoneId.systemDefault().getId();
+		
+		// Timezone for InputStart.
 		String tzStart = null;
+		// Timezone for InputEnd.
 		String tzEnd = null;
 		try {
 			InputStart_DateTime = TSCommandProcessorUtil.getDateTime ( InputStart, "InputStart", processor,
@@ -765,8 +804,10 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 			if ( InputStart_DateTime != null ) {
 				tzStart = InputStart_DateTime.getTimeZoneAbbreviation();
 				if ( (tzStart == null) || tzStart.isEmpty() ) {
-					// Set the time zone to the Timezone parameter.
-					InputStart_DateTime.setTimeZone(Timezone);
+					// Time zone is not specified:
+					// - it is required because Campbell Cloud data are for times
+					// - set the time zone to the computer timezone
+					InputStart_DateTime.setTimeZone(computerTimezone);
 				}
 			}
 		}
@@ -780,8 +821,8 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 			if ( InputEnd_DateTime != null ) {
 				tzEnd = InputEnd_DateTime.getTimeZoneAbbreviation();
 				if ( (tzEnd == null) || tzEnd.isEmpty() ) {
-					// Set the time zone to the Timezone parameter.
-					InputEnd_DateTime.setTimeZone(Timezone);
+					// Set the time zone to the computer timezone.
+					InputEnd_DateTime.setTimeZone(computerTimezone);
 				}
 			}
 		}
@@ -791,8 +832,8 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 		}
 		
 		// Make sure that the time zones are the same, can be empty.
-		if ( ((tzStart == null) && (tzEnd == null)) || (tzStart.equals(tzEnd)) ) {
-			// OK case.
+		if ( ((tzStart == null) && (tzEnd == null)) || tzStart.equals(tzEnd) ) {
+			// Timezone for InputStart and InputEnd are the same so OK.
 		}
 		else {
             message = "InputStart timezone (" + tzStart + ") and InputEnd timezone (" + tzEnd + ") are different.";
@@ -801,6 +842,8 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
                 new CommandLogRecord(CommandStatusType.FAILURE,
                     message, "Verify that the time zones ar the same or override with the Timezone parameter.") );
 		}
+		
+		Message.printStatus ( 2, routine, "After checking timezone, InputStart=" + InputStart_DateTime + " InputEnd=" + InputEnd_DateTime);
 	}
 
 	if ( warning_count > 0 ) {
@@ -881,10 +924,10 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 					if ( (commandPhase == CommandPhaseType.DISCOVERY) && TSIDForRequest.contains("${") ) { // }
 						// Discovery mode has property in the TSID:
 						// - don't try to read the time series
-						Message.printStatus ( 2, routine, "Setting NovaStar web service discovery time series \"" + TSIDForRequest + "\"" );
+						Message.printStatus ( 2, routine, "Setting Campbell Cloud web service discovery time series \"" + TSIDForRequest + "\"" );
 						ts = new TS();
 						ts.setIdentifier(TSIDForRequest);
-						Message.printStatus ( 2, routine, "Back from setting NovaStar web service discovery time series \"" + TSIDForRequest + "\"" );
+						Message.printStatus ( 2, routine, "Back from setting Campbell Cloud web service discovery time series \"" + TSIDForRequest + "\"" );
 					}
 					else {
 						// Create the list of properties that control the read:
@@ -892,6 +935,7 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 						TSProgressListener tsProgressListener = this;
 						HashMap<String,Object> readProperties = createReadProperties (
 							debug,
+							includeNullData,
 							timeoutSeconds,
 							TimePrecision,
 							Timezone,
@@ -1060,7 +1104,7 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 			        		// Warn if nothing was retrieved (can be overridden to ignore).
 							if ( commandPhase == CommandPhaseType.DISCOVERY ) {
 								if ( readTimeSeries ) {
-									message = "No time series were read from NovaStar web service - may be OK if ${Property} are expanded at run time.";
+									message = "No time series were read from Campbell Cloud web service - may be OK if ${Property} are expanded at run time.";
 									Message.printWarning ( warning_level,
 										MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
 									status.addToLog ( commandPhase,
@@ -1071,7 +1115,7 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 							}
 							else {
 								if ( readTimeSeries ) {
-									message = "No time series were read from NovaStar web service.";
+									message = "No time series were read from Campbell Cloud web service.";
 									Message.printWarning ( warning_level,
 									MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
 									status.addToLog ( commandPhase,
@@ -1104,6 +1148,7 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
 							TSProgressListener tsProgressListener = null;
 							HashMap<String,Object> readProperties = createReadProperties (
 								debug,
+								includeNullData,
 								timeoutSeconds,
 								TimePrecision,
 								Timezone,
@@ -1275,7 +1320,7 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
             if ( (tslist == null) || (size == 0) ) {
             	if ( commandPhase == CommandPhaseType.DISCOVERY ) {
 					if ( readTimeSeries ) {
-						message = "No time series were read from NovaStar web service - may be OK if ${Property} are expanded at run time.";
+						message = "No time series were read from Campbell Cloud web service - may be OK if ${Property} are expanded at run time.";
 						Message.printWarning ( warning_level,
 							MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
                     	status.addToLog ( commandPhase,
@@ -1285,7 +1330,7 @@ throws InvalidCommandParameterException, CommandWarningException, CommandExcepti
             	}
             	else {
 					if ( readTimeSeries ) {
-						message = "No time series were read from NovaStar web service.";
+						message = "No time series were read from Campbell Cloud web service.";
 						Message.printWarning ( warning_level,
 							MessageUtil.formatMessageTag(command_tag,++warning_count), routine, message );
                     	status.addToLog ( commandPhase,

@@ -30,6 +30,7 @@ import org.openwaterfoundation.tstool.plugin.campbellcloud.util.TimeUtil;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import RTi.Util.Message.Message;
 import RTi.Util.Time.DateTime;
 
 /**

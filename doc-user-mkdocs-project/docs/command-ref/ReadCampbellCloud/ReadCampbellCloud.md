@@ -2,8 +2,9 @@
 
 *   [Overview](#overview)
 *   [Command Editor](#command-editor)
-    +   [Match Single Time Series](#match-single-time-series)
-    +   [Match 1+ Time Series](#match-1-time-series)
+    +   [Match Single Time Series (using a station ID)](#match-single-time-series-using-a-station-id)
+    +   [Match Single Time Series (using a TSID)](#match-single-time-series-using-a-tsid)
+    +   [Match 1+ Time Series (Using a TSID)](#match-1-time-series)
 *   [Command Syntax](#command-syntax)
 *   [Examples](#examples)
 *   [Troubleshooting](#troubleshooting)
@@ -62,7 +63,7 @@ it is also possible to create a table of time series metadata rather than readin
 The following dialog is used to edit the command and illustrates the syntax for the command.
 Two options are available for matching time series.
 
-### Match Single Time Series ###
+### Match Single Time Series (using a station ID) ###
 
 The following example illustrates how to read a single time series by specifying the data type and interval (top)
 and station identifier (***Match Single Time Series*** tab).
@@ -70,14 +71,24 @@ This approach is similar to using the general
 [`ReadTimeSeries`](https://opencdss.state.co.us/tstool/latest/doc-user/command-ref/ReadTimeSeries/ReadTimeSeries/)
 command but offers parameters specific to Campbell Cloud web services.
 
-Alternatively, the `TSID` parameter can be specified.
-
 **<p style="text-align: center;">
-![ReadCampbellCloud-single](ReadCampbellCloud-single.png)
+![Read a single time series by matching the station ID](ReadCampbellCloud-single.png)
 </p>**
 
 **<p style="text-align: center;">
-`ReadCampbellCloud` Command Editor to Read a Single Time Series (<a href="../ReadCampbellCloud-single.png">see full-size image</a>)
+`ReadCampbellCloud` Command Editor to Read a Single Time Series by Matching a Station ID (<a href="../ReadCampbellCloud-single.png">see full-size image</a>)
+</p>**
+
+### Match Single Time Series (using a TSID) ###
+
+Alternatively, the `TSID` parameter can be specified to read a single time series.
+
+**<p style="text-align: center;">
+![Read a single time series by matching a TSID](ReadCampbellCloud-single-tsid.png)
+</p>**
+
+**<p style="text-align: center;">
+`ReadCampbellCloud` Command Editor to Read a Single Time Series by Matching a TSID (<a href="../ReadCampbellCloud-single-tsid.png">see full-size image</a>)
 </p>**
 
 ### Match 1+ Time Series ###
@@ -109,7 +120,7 @@ Command Parameters
 |**Tab**|**Parameter**&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|**Description**|**Default**&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|
 |--------------|-----------------|-----------------|--|
 |All|`DataStore`<br>**required**|The Campbell Cloud datastore name to use for the web services connection, as per datastore configuration files (see the [Campbell Cloud Web Services Datastore appendix](../../datastore-ref/CampbellCloud/CampbellCloud.md)). | None - must be specified. |
-||`DataType`<br>**required**|The data type to be queried, corresponding to Campbell datastream `field`. | `*` to read all the time series. |
+||`DataType`<br>**required**|The data type to be queried, corresponding to Campbell datastream `field`, can be specified using `${Property}`.. | `*` to read all the time series. |
 ||`Interval`<br>**required**|The data interval for the time series, currently always `IrregSecond`.  The interval is currently NOT used to filter time series. | `*` - to read all the time series. |
 |***Match Single Time Series***|`StationId`|The station identifier, corresponding to Campbell Cloud `station_id`. | Specify if `TSID` is not specified to read a single time series. |
 ||`TSID`| The time series identifier for the time series to read. | Specify for a single time series if `StationId` is not specified. |
@@ -119,10 +130,11 @@ Command Parameters
 |All|`Alias`<br>|The alias to assign to the time series, as a literal string or using the special formatting characters listed by the command editor.  The alias is a short identifier used by other commands to locate time series for processing, as an alternative to the time series identifier (`TSID`).|None – alias not assigned.|
 ||`InputStart`|Start of the period to query, specified as a date/time with a precision of `MilliSecond` unless the `TimePrecision` parameter is specified.  If not specified, the time zone will default to the computer's time zone. |Read most recent 30 days of data.|
 ||`InputEnd`|End of the period to query, specified as a date/time with a precision `MilliSecond` unless the `TimePrecision` parameter is specified.  If not specified, the time zone will default to the computer's time zone. |Read most recent 30 days of data. |
-|| `ReadData` | Indicate whether time series data should be read: <ul><li>`False` - only read time series metadata</li><li>`True` - read time series metadata and data</ul></ul> | `True` |
-|| `TimePrecision` | Campbell Cloud measurements have report times with sub-second precision.  Other data management systems may not store data to the same time precision.  This parameter can be used to control the CampbellCloud time precision to ensure that the format is appropriate for data use.  Specify as:<ul><li>`NanoSecond`</li><li>`MicroSecond`</li><li>`MilliSecond`</li><li>`HSecond`</li><li>`Second`</li>| `MilliSecond` |
+|| `ReadData` | Indicate whether time series data should be read: <ul><li>`False` - only read time series metadata</li><li>`True` - read time series metadata and data</li></ul> | `True` |
+|| `IncludeNullData` | Indicate whether to include null data values in output, which is useful for troubleshooting: <ul><li>`False` - do not include null values</li><li>`True` - include null values</li></ul> | `False` |
+|| `TimePrecision` | Campbell Cloud measurements have report times with sub-second precision.  Other data management systems may not store data to the same time precision.  This parameter can be used to control the CampbellCloud time precision to ensure that the format is appropriate for data use.  Specify as:<ul><li>`NanoSecond`</li><li>`MicroSecond`</li><li>`MilliSecond`</li><li>`HSecond`</li><li>`Second`</li></ul>| `MilliSecond` |
 || `Units` | The data units to assign to the time series.  Campbell Cloud does not provide data units in the web services API so the units must be determined from sensor documentation. | No units are assigned. |
-||`Timezone`| The time zone for output.  The Campbell Cloud UTC times will be converted to the requested time zone.  Specify the time zone using a name from the ["List of tz database time zones" on Wikipedia](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (e.g., `America/Denver` or `US/Eastern`). See the [Campbell Cloud Datastore / Timezone Handling](../../datastore-ref/CampbellCloud/CampbellCloud.md#timezone-handling) documentation for more information. | `UTC`. |
+||`Timezone`| The time zone for output.  The Campbell Cloud UTC times will be converted to the requested time zone.  Specify the time zone using a name from the ["List of tz database time zones" on Wikipedia](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) (e.g., `America/Denver` or `US/Eastern`). See the [Campbell Cloud Datastore / Timezone Handling](../../datastore-ref/CampbellCloud/CampbellCloud.md#timezone-handling) documentation for more information. Can be specified using `${Property}` syntax.| `UTC`. |
 ||`Timeout` | The number of seconds allowed for web service requests before timing out. | 300 (5 minutes). |
 ||`Debug`| Used for troubleshooting:  `False` or `True`. | `False` |
 
